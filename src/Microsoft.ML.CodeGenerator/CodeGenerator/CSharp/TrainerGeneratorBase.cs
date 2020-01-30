@@ -21,7 +21,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         private string _seperator;
         protected virtual bool IncludeFeatureColumnName => true;
 
-        //abstract properties
+        // abstract properties
         internal abstract string OptionsName { get; }
         internal abstract string MethodName { get; }
         internal abstract IDictionary<string, string> NamedParameters { get; }
@@ -57,18 +57,18 @@ namespace Microsoft.ML.CodeGenerator.CSharp
             {
                 object value = null;
 
-                //For Nullable values.
+                // For Nullable values.
                 if (kv.Value == null)
                     continue;
                 Type type = kv.Value.GetType();
                 if (type == typeof(bool))
                 {
-                    //True to true
+                    // True to true
                     value = ((bool)kv.Value).ToString(CultureInfo.InvariantCulture).ToLowerInvariant();
                 }
                 if (type == typeof(float))
                 {
-                    //0.0 to 0.0f
+                    // 0.0 to 0.0f
                     value = ((float)kv.Value).ToString(CultureInfo.InvariantCulture) + "f";
                 }
 
@@ -101,7 +101,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
                 {
                     value = kv.Value;
                 }
-                //more special cases to handle
+                // more special cases to handle
 
                 if (NamedParameters != null && NamedParameters.Count > 0)
                 {
@@ -142,7 +142,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
                     sb.Append(kv.Value.ToString());
                 sb.Append(",");
             }
-            sb.Remove(sb.Length - 1, 1); //remove the last ,
+            sb.Remove(sb.Length - 1, 1); // remove the last ,
             return sb.ToString();
         }
 

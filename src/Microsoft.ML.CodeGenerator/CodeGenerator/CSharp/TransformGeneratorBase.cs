@@ -13,7 +13,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
     /// </summary>
     internal abstract class TransformGeneratorBase : ITransformGenerator
     {
-        //abstract properties
+        // abstract properties
         internal abstract string MethodName { get; }
 
         internal virtual string[] Usings => null;

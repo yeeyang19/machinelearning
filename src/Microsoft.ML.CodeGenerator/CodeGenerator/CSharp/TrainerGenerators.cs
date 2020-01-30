@@ -12,10 +12,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
     {
         internal abstract class LightGbmBase : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "LightGbm";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -70,13 +70,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class AveragedPerceptron : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "AveragedPerceptron";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "AveragedPerceptronTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -107,7 +107,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string[] Usings => new string[] { "using Microsoft.ML.Trainers.FastTree;\r\n" };
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -133,10 +133,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class FastForestClassification : FastTreeBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "FastForest";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "FastForestClassification.Options";
 
             public FastForestClassification(PipelineNode node) : base(node)
@@ -146,10 +146,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class FastForestRegression : FastTreeBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "FastForest";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "FastForestRegression.Options";
 
             public FastForestRegression(PipelineNode node) : base(node)
@@ -159,10 +159,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class FastTreeClassification : FastTreeBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "FastTree";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "FastTreeBinaryTrainer.Options";
 
             public FastTreeClassification(PipelineNode node) : base(node)
@@ -172,10 +172,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class FastTreeRegression : FastTreeBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "FastTree";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "FastTreeRegressionTrainer.Options";
 
             public FastTreeRegression(PipelineNode node) : base(node)
@@ -185,10 +185,10 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class FastTreeTweedie : FastTreeBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "FastTreeTweedie";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "FastTreeTweedieTrainer.Options";
 
             public FastTreeTweedie(PipelineNode node) : base(node)
@@ -199,13 +199,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class LinearSvm : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "LinearSvm";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "LinearSvmTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -232,7 +232,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal abstract class LbfgsLogisticRegressionBase : TrainerGeneratorBase
         {
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -262,7 +262,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string MethodName => "LbfgsLogisticRegression";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "LbfgsLogisticRegressionBinaryTrainer.Options";
 
             public LbfgsLogisticRegressionBinary(PipelineNode node) : base(node)
@@ -274,7 +274,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string MethodName => "LbfgsMaximumEntropy";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "LbfgsMaximumEntropyMulticlassTrainer.Options";
 
             public LbfgsMaximumEntropyMulti(PipelineNode node) : base(node)
@@ -285,13 +285,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class OnlineGradientDescentRegression : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "OnlineGradientDescent";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "OnlineGradientDescentTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -319,13 +319,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class OlsRegression : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "Ols";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "OlsTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -349,13 +349,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class LbfgsPoissonRegression : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "LbfgsPoissonRegression";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "LbfgsPoissonRegressionTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -385,7 +385,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         #region SDCA
         internal abstract class StochasticDualCoordinateAscentBase : TrainerGeneratorBase
         {
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -415,7 +415,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string MethodName => "SdcaLogisticRegression";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "SdcaLogisticRegressionBinaryTrainer.Options";
 
             public StochasticDualCoordinateAscentBinary(PipelineNode node) : base(node)
@@ -427,7 +427,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string MethodName => "SdcaMaximumEntropy";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "SdcaMaximumEntropyMulticlassTrainer.Options";
 
             public StochasticDualCoordinateAscentMulti(PipelineNode node) : base(node)
@@ -439,7 +439,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
         {
             internal override string MethodName => "Sdca";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "SdcaRegressionTrainer.Options";
 
             public StochasticDualCoordinateAscentRegression(PipelineNode node) : base(node)
@@ -450,13 +450,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class SgdCalibratedBinary : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "SgdCalibrated";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "SgdCalibratedTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -483,13 +483,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class SymbolicSgdLogisticRegressionBinary : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "SymbolicSgdLogisticRegression";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => "SymbolicSgdLogisticRegressionBinaryTrainer.Options";
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -517,13 +517,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
             private PipelineNode _node;
             private string[] _binaryTrainerUsings;
 
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "OneVersusAll";
 
-            //ClassName of the options to trainer
+            // ClassName of the options to trainer
             internal override string OptionsName => null;
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters => null;
 
             internal override string[] Usings => new string[] { "using Microsoft.ML.Trainers;\r\n" };
@@ -559,7 +559,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal sealed class ImageClassificationTrainer : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "ImageClassification";
             internal override string OptionsName => "ImageClassificationTrainer.Options";
             internal override string[] Usings => new string[] { "using Microsoft.ML.Vision;\r\n" };
@@ -567,7 +567,7 @@ namespace Microsoft.ML.CodeGenerator.CSharp
             public ImageClassificationTrainer(PipelineNode node) : base(node)
             {
             }
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get
@@ -580,13 +580,13 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal class MatrixFactorization : TrainerGeneratorBase
         {
-            //ClassName of the trainer
+            // ClassName of the trainer
             internal override string MethodName => "MatrixFactorization";
 
             internal override string OptionsName => "MatrixFactorizationTrainer.Options";
             protected override bool IncludeFeatureColumnName => false;
 
-            //The named parameters to the trainer.
+            // The named parameters to the trainer.
             internal override IDictionary<string, string> NamedParameters
             {
                 get

@@ -282,25 +282,25 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
             // Get post trainer transforms
             nodes = _pipeline.Nodes.SkipWhile(t => t.NodeType == PipelineNodeType.Transform)
-                .SkipWhile(t => t.NodeType == PipelineNodeType.Trainer) //skip the trainer
-                .TakeWhile(t => t.NodeType == PipelineNodeType.Transform); //post trainer transforms
+                .SkipWhile(t => t.NodeType == PipelineNodeType.Trainer) // skip the trainer
+                .TakeWhile(t => t.NodeType == PipelineNodeType.Transform); // post trainer transforms
             var postTrainerTransformsAndUsings = GenerateTransformsAndUsings(nodes);
 
-            //Get trainer code and its associated usings.
+            // Get trainer code and its associated usings.
             (string trainerMethod, string[] trainerUsings) = GenerateTrainerAndUsings();
             if (trainerUsings != null)
             {
                 usings.AddRange(trainerUsings);
             }
 
-            //Get transforms code and its associated (unique) usings.
+            // Get transforms code and its associated (unique) usings.
             var preTrainerTransforms = preTrainerTransformsAndUsings?.Select(t => t.Item1).ToList();
             var postTrainerTransforms = postTrainerTransformsAndUsings?.Select(t => t.Item1).ToList();
             usings.AddRange(preTrainerTransformsAndUsings.Where(t => t.Item2 != null).SelectMany(t => t.Item2));
             usings.AddRange(postTrainerTransformsAndUsings.Where(t => t.Item2 != null).SelectMany(t => t.Item2));
             usings = usings.Distinct().ToList();
 
-            //Combine all using statements to actual text.
+            // Combine all using statements to actual text.
             usingsBuilder = new StringBuilder();
             usings.ForEach(t =>
             {
@@ -313,8 +313,8 @@ namespace Microsoft.ML.CodeGenerator.CSharp
 
         internal IList<(string, string[])> GenerateTransformsAndUsings(IEnumerable<PipelineNode> nodes)
         {
-            //var nodes = pipeline.Nodes.TakeWhile(t => t.NodeType == PipelineNodeType.Transform);
-            //var nodes = pipeline.Nodes.Where(t => t.NodeType == PipelineNodeType.Transform);
+            // var nodes = pipeline.Nodes.TakeWhile(t => t.NodeType == PipelineNodeType.Transform);
+            // var nodes = pipeline.Nodes.Where(t => t.NodeType == PipelineNodeType.Transform);
             var results = new List<(string, string[])>();
             foreach (var node in nodes)
             {
