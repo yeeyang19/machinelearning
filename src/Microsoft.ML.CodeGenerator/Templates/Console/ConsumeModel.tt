@@ -19,33 +19,33 @@ using <#= Namespace #>.Model;
 namespace <#= Namespace #>.Model
 {
 	public class ConsumeModel
-    {
-        // For more info on consuming ML.NET models, visit https://aka.ms/model-builder-consume
-        // Method for consuming model in your app
-        public static ModelOutput Predict(ModelInput input)
-        {
+	{
+		// For more info on consuming ML.NET models, visit https://aka.ms/model-builder-consume
+		// Method for consuming model in your app
+		public static ModelOutput Predict(ModelInput input)
+		{
 		
-            // Create new MLContext
-            MLContext mlContext = new MLContext();
+			// Create new MLContext
+			MLContext mlContext = new MLContext();
 <#if(HasNormalizeMapping){ #> 
 			// Register NormalizeMapping
-            mlContext.ComponentCatalog.RegisterAssembly(typeof(NormalizeMapping).Assembly);
+			mlContext.ComponentCatalog.RegisterAssembly(typeof(NormalizeMapping).Assembly);
 <#} #>
 <#if(HasLabelMapping){ #> 
 			// Register LabelMapping
-            mlContext.ComponentCatalog.RegisterAssembly(typeof(LabelMapping).Assembly);
+			mlContext.ComponentCatalog.RegisterAssembly(typeof(LabelMapping).Assembly);
 <#} #>
 
-            // Load model & create prediction engine
-            string modelPath = @"<#= MLNetModelpath #>";
-            ITransformer mlModel = mlContext.Model.Load(modelPath, out var modelInputSchema);
-            var predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(mlModel);
+			// Load model & create prediction engine
+			string modelPath = @"<#= MLNetModelpath #>";
+			ITransformer mlModel = mlContext.Model.Load(modelPath, out var modelInputSchema);
+			var predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(mlModel);
 
-            // Use model to make prediction on input data
-            ModelOutput result = predEngine.Predict(input);
-            return result;
-        }
-    }
+			// Use model to make prediction on input data
+			ModelOutput result = predEngine.Predict(input);
+			return result;
+		}
+	}
 }
 <#+
 public string Namespace {get;set;}

@@ -33,50 +33,50 @@ MB_Annotation();
             this.Write("using Microsoft.ML.Data;\r\nusing Microsoft.ML.Transforms;\r\nusing System;\r\nusing Sy" +
                     "stem.Linq;\r\n\r\nnamespace ");
             this.Write(this.ToStringHelper.ToStringWithCulture(Namespace));
-            this.Write(".Model\r\n{\r\n    [CustomMappingFactoryAttribute(nameof(LabelMapping))]\r\n    public " +
-                    "class LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>" +
-                    "\r\n    {\r\n\t\tpublic static string[] Label {get; set;} = new string[]{");
+            this.Write(".Model\r\n{\r\n\t[CustomMappingFactoryAttribute(nameof(LabelMapping))]\r\n\tpublic class " +
+                    "LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>\r\n\t{\r\n" +
+                    "\t\tpublic static string[] Label {get; set;} = new string[]{");
 foreach(var label in Labels){
             this.Write("\"");
             this.Write(this.ToStringHelper.ToStringWithCulture(label));
             this.Write("\",");
 }
             this.Write(@"};
-        // This is the custom mapping. We now separate it into a method, so that we can use it both in training and in loading.
-        public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
-        {
-            var values = input.output1.GetValues().ToArray();
-            var maxVal = values.Max();
-            var exp = values.Select(v => Math.Exp(v - maxVal));
-            var sumExp = exp.Sum();
+		// This is the custom mapping. We now separate it into a method, so that we can use it both in training and in loading.
+		public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
+		{
+			var values = input.output1.GetValues().ToArray();
+			var maxVal = values.Max();
+			var exp = values.Select(v => Math.Exp(v - maxVal));
+			var sumExp = exp.Sum();
 
-            exp.Select(v => (float)(v / sumExp)).ToArray();
-            output.score = exp.Select(v => (float)(v / sumExp)).ToArray();
+			exp.Select(v => (float)(v / sumExp)).ToArray();
+			output.score = exp.Select(v => (float)(v / sumExp)).ToArray();
 
-            var maxValue = output.score.Max();
-            var maxValueIndex = Array.IndexOf(output.score, maxValue);
-            output.label = Label[maxValueIndex];
-        }
-        // This factory method will be called when loading the model to get the mapping operation.
-        public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
-        {
-            return Mapping;
-        }
-    }
-    public class LabelMappingInput
-    {
-        [ColumnName(""output1"")]
-        public VBuffer<float> output1;
-    }
-    public class LabelMappingOutput
-    {
+			var maxValue = output.score.Max();
+			var maxValueIndex = Array.IndexOf(output.score, maxValue);
+			output.label = Label[maxValueIndex];
+		}
+		// This factory method will be called when loading the model to get the mapping operation.
+		public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
+		{
+			return Mapping;
+		}
+	}
+	public class LabelMappingInput
+	{
+		[ColumnName(""output1"")]
+		public VBuffer<float> output1;
+	}
+	public class LabelMappingOutput
+	{
 
-        [ColumnName(""PredictedLabel"")]
-        public string label { get; set; }
+		[ColumnName(""PredictedLabel"")]
+		public string label { get; set; }
 
-        [ColumnName(""Score"")]
-        public float[] score { get; set; }
-    }
+		[ColumnName(""Score"")]
+		public float[] score { get; set; }
+	}
 }
 ");
             return this.GenerationEnvironment.ToString();

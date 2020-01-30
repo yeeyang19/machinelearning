@@ -14,26 +14,26 @@ using Microsoft.ML.Data;
 
 namespace  <#= Namespace #>.Model
 {
-    public class ModelOutput
-    {
+	public class ModelOutput
+	{
 <#if("BinaryClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
-        // its default value, which is the name of the field.
-        [ColumnName("PredictedLabel")]
-        public bool Prediction { get; set; }
+		// ColumnName attribute is used to change the column name from
+		// its default value, which is the name of the field.
+		[ColumnName("PredictedLabel")]
+		public bool Prediction { get; set; }
 
 <# } if("MulticlassClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
-        // its default value, which is the name of the field.
-        [ColumnName("PredictedLabel")]
-        public <#= PredictionLabelType#> Prediction { get; set; }
+		// ColumnName attribute is used to change the column name from
+		// its default value, which is the name of the field.
+		[ColumnName("PredictedLabel")]
+		public <#= PredictionLabelType#> Prediction { get; set; }
 <# }#>
 <#if("MulticlassClassification".Equals(TaskType)){ #>
-        public float[] Score { get; set; }
+		public float[] Score { get; set; }
 <#}else{ #>
-        public float Score { get; set; }
+		public float Score { get; set; }
 <#}#>
-    }
+	}
 }
 <#+
 public string TaskType {get;set;}

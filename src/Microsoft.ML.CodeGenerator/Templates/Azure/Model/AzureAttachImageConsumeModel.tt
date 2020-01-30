@@ -18,60 +18,60 @@ using System.IO;
 
 namespace <#= Namespace #>.Model
 {
-    public class ConsumeModel
-    {
-        private static string LABEL_MAP = @"bestModelMap.json";
+	public class ConsumeModel
+	{
+		private static string LABEL_MAP = @"bestModelMap.json";
 
-        // For more info on consuming ML.NET models, visit https://aka.ms/model-builder-consume
-        // Method for consuming model in your app
-        public static IEnumerable<KeyValuePair<string, float>> Predict(ModelInput input)
-        {
-            // Create new MLContext
-            MLContext mlContext = new MLContext();
+		// For more info on consuming ML.NET models, visit https://aka.ms/model-builder-consume
+		// Method for consuming model in your app
+		public static IEnumerable<KeyValuePair<string, float>> Predict(ModelInput input)
+		{
+			// Create new MLContext
+			MLContext mlContext = new MLContext();
 
-            // Register NormalizeMapping
-            mlContext.ComponentCatalog.RegisterAssembly(typeof(NormalizeMapping).Assembly);
+			// Register NormalizeMapping
+			mlContext.ComponentCatalog.RegisterAssembly(typeof(NormalizeMapping).Assembly);
 
-            // Load model & create prediction engine
-            string modelPath = AppDomain.CurrentDomain.BaseDirectory + "MLModel.zip";
-            ITransformer mlModel = mlContext.Model.Load(modelPath, out var modelInputSchema);
-            var predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(mlModel);
+			// Load model & create prediction engine
+			string modelPath = AppDomain.CurrentDomain.BaseDirectory + "MLModel.zip";
+			ITransformer mlModel = mlContext.Model.Load(modelPath, out var modelInputSchema);
+			var predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, ModelOutput>(mlModel);
 
-            // Use model to make prediction on input data
-            ModelOutput result = predEngine.Predict(input);
+			// Use model to make prediction on input data
+			ModelOutput result = predEngine.Predict(input);
 
-            // SoftMax the score
-            var predictScore = ConsumeModel.SoftMax(result.Score);
-            // Load LabelMap
-            List<string> map = default;
-            Dictionary<int, string> labelMap = new Dictionary<int, string>();
+			// SoftMax the score
+			var predictScore = ConsumeModel.SoftMax(result.Score);
+			// Load LabelMap
+			List<string> map = default;
+			Dictionary<int, string> labelMap = new Dictionary<int, string>();
 
-            using (StreamReader sr = new StreamReader(ConsumeModel.LABEL_MAP))
-            {
-                var json = sr.ReadLine();
-                var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
-                var ser = new DataContractJsonSerializer(typeof(List<string>));
-                map = ser.ReadObject(ms) as List<string>;
-                ms.Close();
-            }
+			using (StreamReader sr = new StreamReader(ConsumeModel.LABEL_MAP))
+			{
+				var json = sr.ReadLine();
+				var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+				var ser = new DataContractJsonSerializer(typeof(List<string>));
+				map = ser.ReadObject(ms) as List<string>;
+				ms.Close();
+			}
 
-            for (int i = 0; i != map.Count(); ++i)
-            {
-                labelMap.Add(i, map[i]);
-            }
+			for (int i = 0; i != map.Count(); ++i)
+			{
+				labelMap.Add(i, map[i]);
+			}
 
-            return predictScore.Select((score, keyIndex) => new KeyValuePair<string, float>(labelMap[keyIndex], score)).OrderByDescending(x => x.Value);
-        }
+			return predictScore.Select((score, keyIndex) => new KeyValuePair<string, float>(labelMap[keyIndex], score)).OrderByDescending(x => x.Value);
+		}
 
-        private static float[] SoftMax(float[] values)
-        {
-            var maxVal = values.Max();
-            var exp = values.Select(v => Math.Exp(v - maxVal));
-            var sumExp = exp.Sum();
+		private static float[] SoftMax(float[] values)
+		{
+			var maxVal = values.Max();
+			var exp = values.Select(v => Math.Exp(v - maxVal));
+			var sumExp = exp.Sum();
 
-            return exp.Select(v => (float)(v / sumExp)).ToArray();
-        }
-    }
+			return exp.Select(v => (float)(v / sumExp)).ToArray();
+		}
+	}
 }
 <#+
 public string Namespace {get;set;}

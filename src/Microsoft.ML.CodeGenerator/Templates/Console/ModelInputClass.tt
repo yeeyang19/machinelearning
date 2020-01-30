@@ -13,10 +13,10 @@ using Microsoft.ML.Data;
 
 namespace  <#= Namespace #>.Model
 {
-    public class ModelInput
-    {
+	public class ModelInput
+	{
 <#foreach(var label in ClassLabels){#>
-       <#=label#>
+	   <#=label#>
 <#}#>
 }
 }

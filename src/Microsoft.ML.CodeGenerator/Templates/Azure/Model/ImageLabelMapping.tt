@@ -15,45 +15,45 @@ using System.Linq;
 
 namespace <#= Namespace #>.Model
 {
-    [CustomMappingFactoryAttribute(nameof(LabelMapping))]
-    public class LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>
-    {
+	[CustomMappingFactoryAttribute(nameof(LabelMapping))]
+	public class LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>
+	{
 		public static string[] Label {get; set;} = new string[]{<#foreach(var label in Labels){#>"<#=label#>",<#}#>};
-        // This is the custom mapping. We now separate it into a method, so that we can use it both in training and in loading.
-        public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
-        {
-            var values = input.output1.GetValues().ToArray();
-            var maxVal = values.Max();
-            var exp = values.Select(v => Math.Exp(v - maxVal));
-            var sumExp = exp.Sum();
+		// This is the custom mapping. We now separate it into a method, so that we can use it both in training and in loading.
+		public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
+		{
+			var values = input.output1.GetValues().ToArray();
+			var maxVal = values.Max();
+			var exp = values.Select(v => Math.Exp(v - maxVal));
+			var sumExp = exp.Sum();
 
-            exp.Select(v => (float)(v / sumExp)).ToArray();
-            output.score = exp.Select(v => (float)(v / sumExp)).ToArray();
+			exp.Select(v => (float)(v / sumExp)).ToArray();
+			output.score = exp.Select(v => (float)(v / sumExp)).ToArray();
 
-            var maxValue = output.score.Max();
-            var maxValueIndex = Array.IndexOf(output.score, maxValue);
-            output.label = Label[maxValueIndex];
-        }
-        // This factory method will be called when loading the model to get the mapping operation.
-        public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
-        {
-            return Mapping;
-        }
-    }
-    public class LabelMappingInput
-    {
-        [ColumnName("output1")]
-        public VBuffer<float> output1;
-    }
-    public class LabelMappingOutput
-    {
+			var maxValue = output.score.Max();
+			var maxValueIndex = Array.IndexOf(output.score, maxValue);
+			output.label = Label[maxValueIndex];
+		}
+		// This factory method will be called when loading the model to get the mapping operation.
+		public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
+		{
+			return Mapping;
+		}
+	}
+	public class LabelMappingInput
+	{
+		[ColumnName("output1")]
+		public VBuffer<float> output1;
+	}
+	public class LabelMappingOutput
+	{
 
-        [ColumnName("PredictedLabel")]
-        public string label { get; set; }
+		[ColumnName("PredictedLabel")]
+		public string label { get; set; }
 
-        [ColumnName("Score")]
-        public float[] score { get; set; }
-    }
+		[ColumnName("Score")]
+		public float[] score { get; set; }
+	}
 }
 <#+
 public string Namespace {get;set;}

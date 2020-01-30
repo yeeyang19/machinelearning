@@ -31,9 +31,7 @@ namespace Microsoft.ML.CodeGenerator.CodeGenerator.CSharp
             // Get trainer code and its associated usings.
             (string trainerMethod, string[] trainerUsings) = GenerateTrainerAndUsings(pipeline);
             if (trainerUsings != null)
-            {
                 usings.AddRange(trainerUsings);
-            }
 
             // Get transforms code and its associated (unique) usings.
             var preTrainerTransforms = preTrainerTransformsAndUsings?.Select(t => t.Item1).ToList();

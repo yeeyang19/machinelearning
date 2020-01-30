@@ -34,35 +34,31 @@ MB_Annotation();
                     "m.Text;\r\nusing Microsoft.ML;\r\nusing System.Runtime.Serialization.Json;\r\nusing Sy" +
                     "stem.IO;\r\n\r\nnamespace ");
             this.Write(this.ToStringHelper.ToStringWithCulture(Namespace));
-            this.Write(".Model\r\n{\r\n    public class ConsumeModel\r\n    {\r\n        private static string LA" +
-                    "BEL_MAP = @\"bestModelMap.json\";\r\n\r\n        // For more info on consuming ML.NET " +
-                    "models, visit https://aka.ms/model-builder-consume\r\n        // Method for consum" +
-                    "ing model in your app\r\n        public static IEnumerable<KeyValuePair<string, fl" +
-                    "oat>> Predict(ModelInput input)\r\n        {\r\n            // Create new MLContext\r" +
-                    "\n            MLContext mlContext = new MLContext();\r\n\r\n            // Register N" +
-                    "ormalizeMapping\r\n            mlContext.ComponentCatalog.RegisterAssembly(typeof(" +
-                    "NormalizeMapping).Assembly);\r\n\r\n            // Load model & create prediction en" +
-                    "gine\r\n            string modelPath = AppDomain.CurrentDomain.BaseDirectory + \"ML" +
-                    "Model.zip\";\r\n            ITransformer mlModel = mlContext.Model.Load(modelPath, " +
-                    "out var modelInputSchema);\r\n            var predEngine = mlContext.Model.CreateP" +
-                    "redictionEngine<ModelInput, ModelOutput>(mlModel);\r\n\r\n            // Use model t" +
-                    "o make prediction on input data\r\n            ModelOutput result = predEngine.Pre" +
-                    "dict(input);\r\n\r\n            // SoftMax the score\r\n            var predictScore =" +
-                    " ConsumeModel.SoftMax(result.Score);\r\n            // Load LabelMap\r\n            " +
-                    "List<string> map = default;\r\n            Dictionary<int, string> labelMap = new " +
-                    "Dictionary<int, string>();\r\n\r\n            using (StreamReader sr = new StreamRea" +
-                    "der(ConsumeModel.LABEL_MAP))\r\n            {\r\n                var json = sr.ReadL" +
-                    "ine();\r\n                var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));" +
-                    "\r\n                var ser = new DataContractJsonSerializer(typeof(List<string>))" +
-                    ";\r\n                map = ser.ReadObject(ms) as List<string>;\r\n                ms" +
-                    ".Close();\r\n            }\r\n\r\n            for (int i = 0; i != map.Count(); ++i)\r\n" +
-                    "            {\r\n                labelMap.Add(i, map[i]);\r\n            }\r\n\r\n      " +
-                    "      return predictScore.Select((score, keyIndex) => new KeyValuePair<string, f" +
-                    "loat>(labelMap[keyIndex], score)).OrderByDescending(x => x.Value);\r\n        }\r\n\r" +
-                    "\n        private static float[] SoftMax(float[] values)\r\n        {\r\n            " +
-                    "var maxVal = values.Max();\r\n            var exp = values.Select(v => Math.Exp(v " +
-                    "- maxVal));\r\n            var sumExp = exp.Sum();\r\n\r\n            return exp.Selec" +
-                    "t(v => (float)(v / sumExp)).ToArray();\r\n        }\r\n    }\r\n}\r\n");
+            this.Write(".Model\r\n{\r\n\tpublic class ConsumeModel\r\n\t{\r\n\t\tprivate static string LABEL_MAP = @\"" +
+                    "bestModelMap.json\";\r\n\r\n\t\t// For more info on consuming ML.NET models, visit http" +
+                    "s://aka.ms/model-builder-consume\r\n\t\t// Method for consuming model in your app\r\n\t" +
+                    "\tpublic static IEnumerable<KeyValuePair<string, float>> Predict(ModelInput input" +
+                    ")\r\n\t\t{\r\n\t\t\t// Create new MLContext\r\n\t\t\tMLContext mlContext = new MLContext();\r\n\r" +
+                    "\n\t\t\t// Register NormalizeMapping\r\n\t\t\tmlContext.ComponentCatalog.RegisterAssembly" +
+                    "(typeof(NormalizeMapping).Assembly);\r\n\r\n\t\t\t// Load model & create prediction eng" +
+                    "ine\r\n\t\t\tstring modelPath = AppDomain.CurrentDomain.BaseDirectory + \"MLModel.zip\"" +
+                    ";\r\n\t\t\tITransformer mlModel = mlContext.Model.Load(modelPath, out var modelInputS" +
+                    "chema);\r\n\t\t\tvar predEngine = mlContext.Model.CreatePredictionEngine<ModelInput, " +
+                    "ModelOutput>(mlModel);\r\n\r\n\t\t\t// Use model to make prediction on input data\r\n\t\t\tM" +
+                    "odelOutput result = predEngine.Predict(input);\r\n\r\n\t\t\t// SoftMax the score\r\n\t\t\tva" +
+                    "r predictScore = ConsumeModel.SoftMax(result.Score);\r\n\t\t\t// Load LabelMap\r\n\t\t\tLi" +
+                    "st<string> map = default;\r\n\t\t\tDictionary<int, string> labelMap = new Dictionary<" +
+                    "int, string>();\r\n\r\n\t\t\tusing (StreamReader sr = new StreamReader(ConsumeModel.LAB" +
+                    "EL_MAP))\r\n\t\t\t{\r\n\t\t\t\tvar json = sr.ReadLine();\r\n\t\t\t\tvar ms = new MemoryStream(Enc" +
+                    "oding.UTF8.GetBytes(json));\r\n\t\t\t\tvar ser = new DataContractJsonSerializer(typeof" +
+                    "(List<string>));\r\n\t\t\t\tmap = ser.ReadObject(ms) as List<string>;\r\n\t\t\t\tms.Close();" +
+                    "\r\n\t\t\t}\r\n\r\n\t\t\tfor (int i = 0; i != map.Count(); ++i)\r\n\t\t\t{\r\n\t\t\t\tlabelMap.Add(i, m" +
+                    "ap[i]);\r\n\t\t\t}\r\n\r\n\t\t\treturn predictScore.Select((score, keyIndex) => new KeyValue" +
+                    "Pair<string, float>(labelMap[keyIndex], score)).OrderByDescending(x => x.Value);" +
+                    "\r\n\t\t}\r\n\r\n\t\tprivate static float[] SoftMax(float[] values)\r\n\t\t{\r\n\t\t\tvar maxVal = " +
+                    "values.Max();\r\n\t\t\tvar exp = values.Select(v => Math.Exp(v - maxVal));\r\n\t\t\tvar su" +
+                    "mExp = exp.Sum();\r\n\r\n\t\t\treturn exp.Select(v => (float)(v / sumExp)).ToArray();\r\n" +
+                    "\t\t}\r\n\t}\r\n}\r\n");
             return this.GenerationEnvironment.ToString();
         }
 

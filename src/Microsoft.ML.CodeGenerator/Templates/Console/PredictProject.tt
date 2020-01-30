@@ -7,39 +7,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+	<OutputType>Exe</OutputType>
+	<TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML" Version="<#= StablePackageVersion #>" />
 <# if (IncludeLightGBMPackage){ #>
-    <PackageReference Include="Microsoft.ML.LightGBM" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.LightGBM" Version="<#= StablePackageVersion #>" />
 <#}#>
 <# if (IncludeMklComponentsPackage){ #>
-    <PackageReference Include="Microsoft.ML.Mkl.Components" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.Mkl.Components" Version="<#= StablePackageVersion #>" />
 <#}#>
 <# if (IncludeFastTreePackage){ #>
-    <PackageReference Include="Microsoft.ML.FastTree" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.FastTree" Version="<#= StablePackageVersion #>" />
 <#}#>
 <# if (IncludeImageTransformerPackage){ #>
-    <PackageReference Include="Microsoft.ML.ImageAnalytics" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.ImageAnalytics" Version="<#= StablePackageVersion #>" />
 <#}#>
 <# if (IncludeOnnxPackage){ #>
-    <PackageReference Include="Microsoft.ML.OnnxTransformer" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.OnnxTransformer" Version="<#= StablePackageVersion #>" />
 <#}#>
 <# if (IncludeResNet18Package){ #>
-    <PackageReference Include="Microsoft.ML.DnnImageFeaturizer.ResNet18" Version="0.15.1" />
+	<PackageReference Include="Microsoft.ML.DnnImageFeaturizer.ResNet18" Version="0.15.1" />
 <#}#>
 <# if (IncludeImageClassificationPackage){ #>
-    <PackageReference Include="Microsoft.ML.Vision" Version="<#= StablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.Vision" Version="<#= StablePackageVersion #>" />
 	<PackageReference Include="SciSharp.TensorFlow.Redist" Version="1.14.0" />
 <#}#>
 <# if (IncludeRecommenderPackage){ #>
-    <PackageReference Include="Microsoft.ML.Recommender" Version="<#= UnstablePackageVersion #>" />
+	<PackageReference Include="Microsoft.ML.Recommender" Version="<#= UnstablePackageVersion #>" />
 <#}#>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\\<#= Namespace #>.Model\\<#= Namespace #>.Model.csproj" />
+	<ProjectReference Include="..\\<#= Namespace #>.Model\\<#= Namespace #>.Model.csproj" />
   </ItemGroup>
 </Project>
 <#+

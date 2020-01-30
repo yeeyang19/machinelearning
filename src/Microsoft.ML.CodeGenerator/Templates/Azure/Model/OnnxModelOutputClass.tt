@@ -13,35 +13,35 @@ using Microsoft.ML.Data;
 
 namespace <#= Namespace #>.Model
 {
-    public class ModelOutput
-    {
+	public class ModelOutput
+	{
 <#if("BinaryClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
-        // its default value, which is the name of the field.
-        [ColumnName("label")]
-        public <#= PredictionLabelType#>[] Prediction { get; set; }
+		// ColumnName attribute is used to change the column name from
+		// its default value, which is the name of the field.
+		[ColumnName("label")]
+		public <#= PredictionLabelType#>[] Prediction { get; set; }
 
 <# } if("MulticlassClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
-        // its default value, which is the name of the field.
-        [ColumnName("label")]
-        public <#= PredictionLabelType#>[] Prediction { get; set; }
+		// ColumnName attribute is used to change the column name from
+		// its default value, which is the name of the field.
+		[ColumnName("label")]
+		public <#= PredictionLabelType#>[] Prediction { get; set; }
 <# } if("AzureImageClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
-        // its default value, which is the name of the field.
-        [ColumnName("output1")]
-        public float[] Score { get; set; }
+		// ColumnName attribute is used to change the column name from
+		// its default value, which is the name of the field.
+		[ColumnName("output1")]
+		public float[] Score { get; set; }
 <# }
 #>
 <#if("MulticlassClassification".Equals(TaskType)){ #>
-        [ColumnName("probabilities")]
-        public float[] Score { get; set; }
+		[ColumnName("probabilities")]
+		public float[] Score { get; set; }
 <#}else if (!"AzureImageClassification".Equals(TaskType)){ #>
-        [ColumnName("probabilities")]
-        public float[] Score { get; set; }
+		[ColumnName("probabilities")]
+		public float[] Score { get; set; }
 <#}#>
 
-    }
+	}
 }
 
 <#+

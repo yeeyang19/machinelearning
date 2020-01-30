@@ -36,87 +36,86 @@ MB_Annotation();
             this.Write(this.ToStringHelper.ToStringWithCulture(Namespace));
             this.Write(".Model;\r\nnamespace ");
             this.Write(this.ToStringHelper.ToStringWithCulture(Namespace));
-            this.Write(".ConsoleApp\r\n{\r\n    public static class ModelBuilder\r\n    {\r\n        private stat" +
-                    "ic string TRAIN_DATA_FILEPATH = @\"");
+            this.Write(".ConsoleApp\r\n{\r\n\tpublic static class ModelBuilder\r\n\t{\r\n\t\tprivate static string TR" +
+                    "AIN_DATA_FILEPATH = @\"");
             this.Write(this.ToStringHelper.ToStringWithCulture(Path));
-            this.Write("\";\r\n        private static string MLNET_MODEL = @\"");
+            this.Write("\";\r\n\t\tprivate static string MLNET_MODEL = @\"");
             this.Write(this.ToStringHelper.ToStringWithCulture(MLNetModelpath));
             this.Write("\";\r\n\t\tprivate static string ONNX_MODEL = @\"");
             this.Write(this.ToStringHelper.ToStringWithCulture(OnnxModelPath));
             this.Write(@""";
-       
-	    // Create MLContext to be shared across the model creation workflow objects 
-        // Set a random seed for repeatable/deterministic results across multiple trainings.
-        private static MLContext mlContext = new MLContext(seed: 1);
+	   
+		// Create MLContext to be shared across the model creation workflow objects 
+		// Set a random seed for repeatable/deterministic results across multiple trainings.
+		private static MLContext mlContext = new MLContext(seed: 1);
 
 		// Training in Azure produces an ONNX model; this method demonstrates creating an ML.NET model (MLModel.zip) from the ONNX model (bestModel.onnx), which you can then use with the ConsumeModel() method to make predictions
-        public static void CreateMLNetModelFromOnnx()
-        {
-            // Load data
-            IDataView inputDataView = mlContext.Data.LoadFromTextFile<ModelInput>(
-                                            path: TRAIN_DATA_FILEPATH,
-                                            hasHeader : ");
+		public static void CreateMLNetModelFromOnnx()
+		{
+			// Load data
+			IDataView inputDataView = mlContext.Data.LoadFromTextFile<ModelInput>(
+											path: TRAIN_DATA_FILEPATH,
+											hasHeader : ");
             this.Write(this.ToStringHelper.ToStringWithCulture(HasHeader.ToString().ToLowerInvariant()));
-            this.Write(",\r\n                                            separatorChar : \'");
+            this.Write(",\r\n\t\t\t\t\t\t\t\t\t\t\tseparatorChar : \'");
             this.Write(this.ToStringHelper.ToStringWithCulture(Regex.Escape(Separator.ToString())));
-            this.Write("\',\r\n                                            allowQuoting : ");
+            this.Write("\',\r\n\t\t\t\t\t\t\t\t\t\t\tallowQuoting : ");
             this.Write(this.ToStringHelper.ToStringWithCulture(AllowQuoting.ToString().ToLowerInvariant()));
-            this.Write(",\r\n                                            allowSparse: ");
+            this.Write(",\r\n\t\t\t\t\t\t\t\t\t\t\tallowSparse: ");
             this.Write(this.ToStringHelper.ToStringWithCulture(AllowSparse.ToString().ToLowerInvariant()));
             this.Write(@");
 
-            // Create an ML.NET pipeline to score using the ONNX model
+			// Create an ML.NET pipeline to score using the ONNX model
 			// Notice that this pipeline is not trainable because it only contains transformers
-            IEstimator<ITransformer> pipeline = BuildPipeline(mlContext);
+			IEstimator<ITransformer> pipeline = BuildPipeline(mlContext);
 
 			// Create ML.NET model from pipeline
 			ITransformer mlModel = pipeline.Fit(inputDataView);
 
-            // Save model
-            SaveModel(mlContext, mlModel, MLNET_MODEL, inputDataView.Schema);
-        }
+			// Save model
+			SaveModel(mlContext, mlModel, MLNET_MODEL, inputDataView.Schema);
+		}
 
-        public static IEstimator<ITransformer> BuildPipeline(MLContext mlContext)
-        {
+		public static IEstimator<ITransformer> BuildPipeline(MLContext mlContext)
+		{
 ");
  if(PreTrainerTransforms.Count >0 ) {
-            this.Write("            // Data process configuration with pipeline data transformations to:\r" +
-                    "\n            // 1. Score using provided onnx model\r\n            // 2. Map scores" +
-                    " to labels to make model output easier to understand and use\r\n            var pi" +
-                    "peline = ");
+            this.Write("\t\t\t// Data process configuration with pipeline data transformations to:\r\n\t\t\t// 1." +
+                    " Score using provided onnx model\r\n\t\t\t// 2. Map scores to labels to make model ou" +
+                    "tput easier to understand and use\r\n\t\t\tvar pipeline = ");
  for(int i=0;i<PreTrainerTransforms.Count;i++) 
-                                         { 
-                                             if(i>0)
-                                             { Write("\r\n                                      .Append(");
-                                             }
-                                             Write("mlContext.Transforms."+PreTrainerTransforms[i]);
-                                             if(i>0)
-                                             { Write(")");
-                                             }
-                                         } 
+										 { 
+											 if(i>0)
+											 { Write("\r\n									  .Append(");
+											 }
+											 Write("mlContext.Transforms."+PreTrainerTransforms[i]);
+											 if(i>0)
+											 { Write(")");
+											 }
+										 } 
             this.Write(";\r\n");
 }
-            this.Write(@"            return pipeline;
-        }
+            this.Write(@"			return pipeline;
+		}
 
-        private static void SaveModel(MLContext mlContext, ITransformer mlModel, string modelRelativePath, DataViewSchema modelInputSchema)
-        {
-            // Save/persist the trained model to a .ZIP file
-            Console.WriteLine($""=============== Saving the model  ==============="");
-            mlContext.Model.Save(mlModel, modelInputSchema, GetAbsolutePath(modelRelativePath));
-            Console.WriteLine(""The model is saved to {0}"", GetAbsolutePath(modelRelativePath));
-        }
+		private static void SaveModel(MLContext mlContext, ITransformer mlModel, string modelRelativePath, DataViewSchema modelInputSchema)
+		{
+			// Save/persist the trained model to a .ZIP file
+			Console.WriteLine($""=============== Saving the model  ==============="");
+			mlContext.Model.Save(mlModel, modelInputSchema, GetAbsolutePath(modelRelativePath));
+			Console.WriteLine(""The model is saved to {0}"", GetAbsolutePath(modelRelativePath));
+		}
 
-        public static string GetAbsolutePath(string relativePath)
-        {
-            FileInfo _dataRoot = new FileInfo(typeof(Program).Assembly.Location);
-            string assemblyFolderPath = _dataRoot.Directory.FullName;
+		public static string GetAbsolutePath(string relativePath)
+		{
+			FileInfo _dataRoot = new FileInfo(typeof(Program).Assembly.Location);
+			string assemblyFolderPath = _dataRoot.Directory.FullName;
 
-            string fullPath = Path.Combine(assemblyFolderPath, relativePath);
+			string fullPath = Path.Combine(assemblyFolderPath, relativePath);
 
-            return fullPath;
-        }
-    }
+			return fullPath;
+		}
+	}
 }
 ");
             return this.GenerationEnvironment.ToString();

@@ -16,57 +16,57 @@ using System.Linq;
 
 namespace <#= Namespace #>.Model
 {
-    [CustomMappingFactoryAttribute(nameof(LabelMapping))]
-    public class LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>
-    {
+	[CustomMappingFactoryAttribute(nameof(LabelMapping))]
+	public class LabelMapping : CustomMappingFactory<LabelMappingInput, LabelMappingOutput>
+	{
 		// Custom mapping to determine the label with the highest probability
-        public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
-        {
+		public static void Mapping(LabelMappingInput input, LabelMappingOutput output)
+		{
 <#if("Boolean".Equals(PredictionLabelType)){ #>
 			output.Prediction = input.label.GetValues().ToArray().First() == 1;
 <# } else{ #>
-            output.Prediction = input.label.GetValues().ToArray().First();
+			output.Prediction = input.label.GetValues().ToArray().First();
 <# }#>
 
 <#if("MulticlassClassification".Equals(TaskType)){ #>
-            output.Score = input.probabilities.GetValues().ToArray();
+			output.Score = input.probabilities.GetValues().ToArray();
 <# } else {#>
-            output.Score = input.probabilities.GetValues().ToArray().First();
+			output.Score = input.probabilities.GetValues().ToArray().First();
 <# }#>
-        }
+		}
 		// Factory method called when loading the model to get the mapping operation
-        public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
-        {
-            return Mapping;
-        }
-    }
-    public class LabelMappingInput
-    {
-        [ColumnName("label")]
-        public VBuffer<Int64> label;
+		public override Action<LabelMappingInput, LabelMappingOutput> GetMapping()
+		{
+			return Mapping;
+		}
+	}
+	public class LabelMappingInput
+	{
+		[ColumnName("label")]
+		public VBuffer<Int64> label;
 
-        [ColumnName("probabilities")]
-        public VBuffer<float> probabilities;
-    }
-    public class LabelMappingOutput
-    {
+		[ColumnName("probabilities")]
+		public VBuffer<float> probabilities;
+	}
+	public class LabelMappingOutput
+	{
 <#if("BinaryClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
+		// ColumnName attribute is used to change the column name from
 		// its default value, which is the name of the field
-        [ColumnName("PredictedLabel")]
-        public bool Prediction { get; set; }
+		[ColumnName("PredictedLabel")]
+		public bool Prediction { get; set; }
 <# } if("MulticlassClassification".Equals(TaskType)){ #>
-        // ColumnName attribute is used to change the column name from
+		// ColumnName attribute is used to change the column name from
 		// its default value, which is the name of the field
-        [ColumnName("PredictedLabel")]
-        public <#= PredictionLabelType#> Prediction { get; set; }
+		[ColumnName("PredictedLabel")]
+		public <#= PredictionLabelType#> Prediction { get; set; }
 <# }#>
 <#if("MulticlassClassification".Equals(TaskType)){ #>
-        public float[] Score { get; set; }
+		public float[] Score { get; set; }
 <#}else{ #>
-        public float Score { get; set; }
+		public float Score { get; set; }
 <#}#>
-    }
+	}
 }
 <#+
 public string Namespace {get;set;}
