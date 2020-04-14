@@ -148,6 +148,8 @@ namespace Microsoft.ML.Tests
                 // A side effect of this, is that after applying a pretrained onnx model
                 // like the one in here, we won't be able to use or access the input
                 // columns of the model.
+                // UPDATE: After discussion, we lean into thinking that this isn't a desired side effect,
+                // and should be avoided.
                 var transformedData = pipe.Fit(dataView).Transform(dataView);
                 var col = transformedData.Schema["data_0"];
             }
