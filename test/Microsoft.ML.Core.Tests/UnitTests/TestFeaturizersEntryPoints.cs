@@ -457,7 +457,7 @@ namespace Microsoft.ML.RunTests
 
             Done();
         }
-
+        
         [NotCentOS7Fact]
         public void ShortDrop_EntryPointTest()
         {
@@ -498,7 +498,7 @@ namespace Microsoft.ML.RunTests
 
             Done();
         }
-
+        
         [NotCentOS7Fact]
         public void ShortDrop_Drop()
         {
@@ -552,7 +552,7 @@ namespace Microsoft.ML.RunTests
 
             Done();
         }
-
+        
         [NotCentOS7Fact]
         public void ShortDrop_Keep()
         {
