@@ -9,6 +9,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.ML;
 using Microsoft.ML.CommandLine;
 using Microsoft.ML.Data;
@@ -830,12 +831,15 @@ namespace Microsoft.ML.Featurizers
                         if (!success)
                             throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                        var grainsPointerSizesP = (long*)grainsPointerSize.ToPointer();
+                        // If no output items then no need to continue
+                        if (outputItems.ToInt32() == 0)
+                            return;
+
+                        var grainsArraySize = GetGrainsArraySize(grainsPointerSize, IntPtr.Size);
                         var allGrainsPointer = (byte***)grainsPointerPointer.ToPointer();
 
                         for (int items = 0; items < outputItems.ToInt32(); items++)
                         {
-                            var grainsArraySize = *grainsPointerSizesP++;
                             var grainArray = new string[grainsArraySize];
                             for (int grainItems = 0; grainItems < grainsArraySize; grainItems++)
                             {
@@ -864,6 +868,20 @@ namespace Microsoft.ML.Featurizers
                                 FlushedValuesCache[grainString] = new List<VBuffer<double>>();
 
                             FlushedValuesCache[grainString].Add(res);
+                        }
+                    }
+
+                    private unsafe long GetGrainsArraySize(IntPtr grainsPointerSize, int intPtrSize)
+                    {
+                        if (intPtrSize == 4)
+                        {
+                            var grainsPointerSizesP = (int*)grainsPointerSize.ToPointer();
+                            return *grainsPointerSizesP++;
+                        }
+                        else
+                        {
+                            var grainsPointerSizesP = (long*)grainsPointerSize.ToPointer();
+                            return *grainsPointerSizesP++;
                         }
                     }
 
