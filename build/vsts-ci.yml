@@ -180,7 +180,7 @@ phases:
     _SignType: real
     _UseEsrpSigning: true
     _TeamName: DotNetCore
-    _AzureDevopsFeedUrl: https://pkgs.dev.azure.com/dnceng/public/_packaging/MachineLearning/nuget/v3/index.json
+    _AzureDevopsFeedUrl: https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/MachineLearning-ORTFeaturizers/nuget/v3/index.json
     _SymwebSymbolServerPath: https://microsoft.artifacts.visualstudio.com/DefaultCollection
     _MsdlSymbolServerPath: https://microsoftpublicsymbols.artifacts.visualstudio.com/DefaultCollection
   queue:
