@@ -11,6 +11,7 @@ using System.Security;
 using System.Text;
 using Microsoft.ML.Data;
 using Microsoft.ML.Featurizers;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.Win32.SafeHandles;
 using static Microsoft.ML.Featurizers.CommonExtensions;
@@ -19,7 +20,7 @@ using static Microsoft.ML.Featurizers.TimeSeriesImputerEstimator;
 namespace Microsoft.ML.Transforms
 {
 
-    internal sealed class TimeSeriesImputerDataView : IDataTransform
+    internal sealed class TimeSeriesImputerDataView : ITransformCanSaveOnnx
     {
         #region Typed Columns
         private TimeSeriesImputerTransformer _parent;
@@ -724,6 +725,169 @@ namespace Microsoft.ML.Transforms
         {
             _parent.Save(ctx);
         }
+
+        public void SaveAsOnnx(OnnxContext ctx)
+        {
+
+            // Create string "state" for the string featurizer
+            var state = new byte[] { 1, 0, 0, 0 };
+            long[] dimensions = new long[] { state.Length };
+
+            // Make the state initializer
+            var initializer = ctx.AddInitializer(state, dimensions, "TSIStateInitializer");
+
+            // Convert individual columns to strings
+            CreateOnnxStringConversion(ctx, _grainColumns, initializer, out string[] grainStringColumns);
+            CreateOnnxStringConversion(ctx, _dataColumns, initializer, out string[] dataStringColumns);
+
+            // Concatenate those into large tensors
+            CreateOnnxColumnConcatenation(ctx, grainStringColumns, "graincolumns", out string grainConcatColumnsName);
+            CreateOnnxColumnConcatenation(ctx, dataStringColumns, "datacolumns", out string dataConcatColumnsName);
+
+            // Make squeeze node to remove "Batch" from the inputs
+            CreateSqueezeNode(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
+            //CreateSqueezeNode(ctx, grainConcatColumnsName, TextDataViewType.Instance);
+            //CreateSqueezeNode(ctx, dataConcatColumnsName, TextDataViewType.Instance);
+
+            // Impute
+            CreateTsiConversion(ctx, grainConcatColumnsName, dataConcatColumnsName);
+
+            // Split back into individual columns
+            CreateOnnxColumnSplit(ctx, "ImputedKeys", grainStringColumns, out string[] grainColumnNames);
+            CreateOnnxColumnSplit(ctx, "ImputedData", dataStringColumns, out string[] dataColumnNames);
+
+            // Convert back to original data type
+            CreateOnnxFromStringConversion(ctx, grainColumnNames, _grainColumns);
+            CreateOnnxFromStringConversion(ctx, dataColumnNames, _dataColumns);
+
+            // Fix shape for IsRowImputed column
+            FixShapes(ctx, "IsRowImputed", BooleanDataViewType.Instance);
+            FixShapes(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
+        }
+
+        private void CreateSqueezeNode(OnnxContext ctx, string columnName, DataViewType columnType)
+        {
+            string opType = "Squeeze";
+
+            var column = ctx.GetVariableName(columnName);
+
+            var dstVariableName = ctx.AddIntermediateVariable(columnType, columnName, true);
+
+            var node = ctx.CreateNode(opType, column, dstVariableName, ctx.GetNodeName(opType), "");
+
+            node.AddAttribute("axes", new long[] { 0 });
+
+        }
+
+        private void FixShapes(OnnxContext ctx, string columnName, DataViewType columnType)
+        {
+            string opType = "Unsqueeze";
+
+            var column = ctx.GetVariableName(columnName);
+
+            var node = ctx.CreateNode(opType, column, ctx.AddIntermediateVariable(columnType, columnName, true), ctx.GetNodeName(opType), "");
+
+            node.AddAttribute("axes", new long[] { 1 });
+        }
+
+        private void CreateTsiConversion(OnnxContext ctx, string grainColumns, string dataColumns)
+        {
+            string opType = "TimeSeriesImputerTransformer";
+
+            var timeVariableName = ctx.GetVariableName(_timeSeriesColumn);
+
+            var state = _parent.CreateOnnxSaveData();
+            long[] dimensions = new long[] { state.Length };
+            var outputList = new List<string>() { ctx.AddIntermediateVariable(BooleanDataViewType.Instance, "IsRowImputed", true),
+                ctx.AddIntermediateVariable(NumberDataViewType.Int64, _timeSeriesColumn, true),
+                ctx.AddIntermediateVariable(TextDataViewType.Instance,"ImputedKeys", true),
+                ctx.AddIntermediateVariable(TextDataViewType.Instance,"ImputedData", true)};
+
+            var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "tsi-state"), timeVariableName, ctx.GetVariableName(grainColumns), ctx.GetVariableName(dataColumns) },
+                    outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+        }
+
+        private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, string initializer, out string[] outputColumns)
+        {
+            string opType = "StringTransformer";
+            outputColumns = new string[inputColumns.Length];
+
+            for (int i = 0; i < inputColumns.Length; i++)
+            {
+                var srcVariableName = ctx.GetVariableName(inputColumns[i]);
+
+                var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, srcVariableName + "-stringoutput");
+                outputColumns[i] = dstVariableName;
+                var node = ctx.CreateNode(opType, new[] { initializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+            }
+        }
+
+        private void CreateOnnxFromStringConversion(OnnxContext ctx, string[] inputColumns, string[] outputColumns)
+        {
+            string opType = "Cast";
+
+            for (int i = 0; i < inputColumns.Length; i++)
+            {
+                _schema.TryGetColumnIndex(outputColumns[i], out int colIndex);
+
+                if (_schema[colIndex].Type.RawType == typeof(ReadOnlyMemory<char>))
+                    continue;
+
+                var dstVariableName = ctx.AddIntermediateVariable(_schema[colIndex].Type, outputColumns[i]);
+                var node = ctx.CreateNode(opType, inputColumns[i], dstVariableName, ctx.GetNodeName(opType), "");
+
+                if (_schema[colIndex].Type.RawType == typeof(float))
+                    node.AddAttribute("to", 1);
+                if (_schema[colIndex].Type.RawType == typeof(byte))
+                    node.AddAttribute("to", 2);
+                if (_schema[colIndex].Type.RawType == typeof(sbyte))
+                    node.AddAttribute("to", 3);
+                if (_schema[colIndex].Type.RawType == typeof(ushort))
+                    node.AddAttribute("to", 4);
+                if (_schema[colIndex].Type.RawType == typeof(short))
+                    node.AddAttribute("to", 5);
+                if (_schema[colIndex].Type.RawType == typeof(int))
+                    node.AddAttribute("to", 6);
+                if (_schema[colIndex].Type.RawType == typeof(uint))
+                    node.AddAttribute("to", 12);
+                if (_schema[colIndex].Type.RawType == typeof(long))
+                    node.AddAttribute("to", 7);
+                if (_schema[colIndex].Type.RawType == typeof(ulong))
+                    node.AddAttribute("to", 13);
+                if (_schema[colIndex].Type.RawType == typeof(double))
+                    node.AddAttribute("to", 11);
+                if (_schema[colIndex].Type.RawType == typeof(bool))
+                    node.AddAttribute("to", 9);
+                if (_schema[colIndex].Type.RawType == typeof(ReadOnlyMemory<char>))
+                    node.AddAttribute("to", 8);
+            }
+        }
+
+        private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
+        {
+            string opType = "Concat";
+            outputColumnName = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnPrefix + "-concatstringsoutput", true);
+
+            var node = ctx.CreateNode(opType, inputColumns, new[] { outputColumnName }, ctx.GetNodeName(opType), "");
+
+            node.AddAttribute("axis", 1);
+        }
+
+        private void CreateOnnxColumnSplit(OnnxContext ctx, string inputColumn, string[] outputColumnNames, out string[] outputColumns)
+        {
+            string opType = "Split";
+
+            outputColumns = new string[outputColumnNames.Length];
+
+            for (int i = 0; i < outputColumnNames.Length; i++)
+                outputColumns[i] = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnNames[i]);
+
+            var node = ctx.CreateNode(opType, new[] { inputColumn }, outputColumns, ctx.GetNodeName(opType), "");
+
+            node.AddAttribute("axis", 1);
+        }
+
+        public bool CanSaveOnnx(OnnxContext ctx) => true;
 
         private sealed class Cursor : DataViewRowCursor
         {

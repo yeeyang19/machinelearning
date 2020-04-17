@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -14,6 +15,7 @@ using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Featurizers;
 using Microsoft.ML.Internal.Utilities;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using static Microsoft.ML.Featurizers.CommonExtensions;
@@ -1586,7 +1588,7 @@ namespace Microsoft.ML.Featurizers
 
         #endregion // Column Info
 
-        private sealed class Mapper : MapperBase
+        private sealed class Mapper : MapperBase, ISaveAsOnnx
         {
             private static readonly FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate> _makeGetterMethodInfo
                 = FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate>.Create(target => target.MakeGetter<int, int>);
@@ -1650,6 +1652,34 @@ namespace Microsoft.ML.Featurizers
             }
 
             private protected override void SaveModel(ModelSaveContext ctx) => _parent.SaveModel(ctx);
+
+            public void SaveAsOnnx(OnnxContext ctx)
+            {
+                Host.CheckValue(ctx, nameof(ctx));
+                Contracts.Assert(CanSaveOnnx(ctx));
+
+                string opType = "RobustScalerTransformer";
+
+                foreach (var column in _parent._columns)
+                {
+                    var srcVariableName = ctx.GetVariableName(column.Source);
+                    if (!ctx.ContainsColumn(srcVariableName))
+                        continue;
+
+                    _schema.TryGetColumnIndex(column.Source, out int colIndex);
+
+                    var dstVariableName = ctx.AddIntermediateVariable(ColumnTypeExtensions.PrimitiveTypeFromType(column.ReturnType()), column.Name);
+
+                    var state = column.CreateTransformerSaveData();
+                    long[] dimensions = new long[] { state.Length };
+                    var outputList = new List<string>() { dstVariableName };
+
+                    var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), srcVariableName },
+                            outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                }
+            }
+
+            public bool CanSaveOnnx(OnnxContext ctx) => true;
         }
     }
 

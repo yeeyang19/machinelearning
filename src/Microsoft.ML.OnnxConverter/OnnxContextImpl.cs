@@ -394,6 +394,17 @@ namespace Microsoft.ML.Model.OnnxConverter
             return name;
         }
 
+        public override string AddInitializer(IEnumerable<byte> values, IEnumerable<long> dims, string name = null, bool makeUniqueName = true)
+        {
+            _host.CheckValue(values, nameof(values));
+            if (dims != null)
+                _host.Check(dims.Aggregate((x, y) => x * y) == values.Count(), "Number of elements doesn't match tensor size");
+
+            name = AddVariable(name ?? "uint8s", makeUniqueName);
+            _initializers.Add(OnnxUtils.MakeUInt8s(name, values, dims));
+            return name;
+        }
+
         public override string AddInitializer(IEnumerable<ulong> values, bool isUint64, IEnumerable<long> dims, string name = null, bool makeUniqueName = true)
         {
             _host.CheckValue(values, nameof(values));

@@ -16,6 +16,7 @@ using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Featurizers;
 using Microsoft.ML.Internal.Utilities;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using static Microsoft.ML.Featurizers.CommonExtensions;
@@ -395,7 +396,7 @@ namespace Microsoft.ML.Featurizers
 
         #region IDataView
 
-        internal sealed class ShortGrainDropperDataView : IDataTransform
+        internal sealed class ShortGrainDropperDataView : ITransformCanSaveOnnx
         {
             private ShortDropTransformer _parent;
 
@@ -450,6 +451,65 @@ namespace Microsoft.ML.Featurizers
             {
                 _parent.Save(ctx);
             }
+
+            public void SaveAsOnnx(OnnxContext ctx)
+            {
+                _host.CheckValue(ctx, nameof(ctx));
+                Contracts.Assert(CanSaveOnnx(ctx));
+
+                string opType = "ShortGrainDropperTransformer";
+                string boolFilterColumnName = "ShortGrainDropper_BoolTemp";
+
+                // Combine all the grains into one tensor
+                CreateOnnxColumnConcatenation(ctx, _parent._options.GrainColumns, "grains", out string grainsTensorName);
+
+                var dstVariableName = ctx.AddIntermediateVariable(BooleanDataViewType.Instance, boolFilterColumnName);
+
+                var state = _parent.CreateTransformerSaveData();
+                long[] dimensions = new long[] { state.Length };
+                var outputList = new List<string>() { dstVariableName };
+
+                var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName },
+                        outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+
+                InvertBoolArray(ctx, boolFilterColumnName);
+
+                DropRowsFromAllColumns(ctx, boolFilterColumnName);
+            }
+
+            private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
+            {
+                string opType = "Concat";
+                outputColumnName = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnPrefix + "-concatstringsoutput", true);
+
+                var node = ctx.CreateNode(opType, inputColumns, new[] { outputColumnName }, ctx.GetNodeName(opType), "");
+
+                node.AddAttribute("axis", 1);
+            }
+
+            private void InvertBoolArray(OnnxContext ctx, string filterColumnName)
+            {
+                string opType = "Not";
+                var srcVariableName = ctx.GetVariableName(filterColumnName);
+                var outputColumnName = ctx.AddIntermediateVariable(BooleanDataViewType.Instance, filterColumnName, true);
+
+                var node = ctx.CreateNode(opType, new[] { srcVariableName }, new[] { outputColumnName }, ctx.GetNodeName(opType), "");
+            }
+
+            private void DropRowsFromAllColumns(OnnxContext ctx, string filterColName)
+            {
+                string opType = "Compress";
+                foreach (var column in Schema)
+                {
+                    var srcVariableName = ctx.GetVariableName(column.Name);
+                    var filterVariableName = ctx.GetVariableName(filterColName);
+                    var dstVariableName = ctx.AddIntermediateVariable(column.Type, column.Name);
+                    var node = ctx.CreateNode(opType, new[] { srcVariableName, filterVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "");
+                    node.AddAttribute("axis", 0);
+                }
+            }
+
+            public bool CanSaveOnnx(OnnxContext ctx) => true;
 
             private sealed class Cursor : DataViewRowCursor
             {

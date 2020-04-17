@@ -15,6 +15,7 @@ using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Featurizers;
 using Microsoft.ML.Internal.Utilities;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using Microsoft.Win32.SafeHandles;
@@ -928,7 +929,7 @@ namespace Microsoft.ML.Featurizers
 
         #endregion
 
-        private sealed class Mapper : MapperBase
+        private sealed class Mapper : MapperBase, ISaveAsOnnx
         {
             private static readonly FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate> _makeGetterMethodInfo
                 = FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate>.Create(target => target.MakeGetter<int, int>);
@@ -1040,6 +1041,64 @@ namespace Microsoft.ML.Featurizers
             }
 
             private protected override void SaveModel(ModelSaveContext ctx) => _parent.SaveModel(ctx);
+
+            public void SaveAsOnnx(OnnxContext ctx)
+            {
+                Host.CheckValue(ctx, nameof(ctx));
+                Contracts.Assert(CanSaveOnnx(ctx));
+
+                string opType = "RollingWindowTransformer";
+
+                // Combine all the grains into one tensor
+                CreateOnnxColumnConcatenation(ctx, _parent._options.GrainColumns, "grains", out string grainsTensorName);
+
+                foreach (var column in _parent._columns)
+                {
+
+                    // srcVariable needs to have the "batch" removed
+                    CreateSqueezeNode(ctx, ctx.GetVariableName(column.Source), NumberDataViewType.Double);
+
+                    var srcVariableName = ctx.GetVariableName(column.Source);
+
+                    if (!ctx.ContainsColumn(column.Source))
+                        continue;
+
+                    var dstVariableName = ctx.AddIntermediateVariable(new VectorDataViewType(NumberDataViewType.Double, 1, (int)_parent._options.Horizon), column.Name);
+
+                    var state = column.CreateTransformerSaveData();
+                    long[] dimensions = new long[] { state.Length };
+                    var outputList = new List<string>() { dstVariableName };
+
+                    var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName, srcVariableName },
+                            outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                }
+            }
+
+            private void CreateSqueezeNode(OnnxContext ctx, string columnName, DataViewType columnType)
+            {
+                string opType = "Squeeze";
+
+                var column = ctx.GetVariableName(columnName);
+
+                var dstVariableName = ctx.AddIntermediateVariable(columnType, columnName, true);
+
+                var node = ctx.CreateNode(opType, column, dstVariableName, ctx.GetNodeName(opType), "");
+
+                node.AddAttribute("axes", new long[] { 1 });
+
+            }
+
+            private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
+            {
+                string opType = "Concat";
+                outputColumnName = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnPrefix + "-concatstringsoutput", true);
+
+                var node = ctx.CreateNode(opType, inputColumns, new[] { outputColumnName }, ctx.GetNodeName(opType), "");
+
+                node.AddAttribute("axis", 1);
+            }
+
+            public bool CanSaveOnnx(OnnxContext ctx) => true;
         }
     }
 

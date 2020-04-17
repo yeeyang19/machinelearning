@@ -542,6 +542,20 @@ namespace Microsoft.ML.Featurizers
             ctx.Writer.Write(data);
         }
 
+        internal byte[] CreateOnnxSaveData()
+        {
+            var success = CreateOnnxSaveDataNative(TransformerHandle, out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle);
+            if (!success)
+                throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
+
+            using (var savedDataHandle = new SaveDataSafeHandle(buffer, bufferSize))
+            {
+                byte[] savedData = new byte[bufferSize.ToInt32()];
+                Marshal.Copy(buffer, savedData, 0, savedData.Length);
+                return savedData;
+            }
+        }
+
         private byte[] CreateTransformerSaveData()
         {
             var success = CreateTransformerSaveDataNative(TransformerHandle, out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle);

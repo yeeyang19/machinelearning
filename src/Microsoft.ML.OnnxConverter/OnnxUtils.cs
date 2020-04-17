@@ -1,3 +1,4 @@
+
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
@@ -427,6 +428,27 @@ namespace Microsoft.ML.Model.OnnxConverter
             tensor.Name = name;
             tensor.DataType = (int)ConvertToTensorProtoType(type);
             tensor.Int32Data.AddRange(values);
+            if (dims != null)
+                tensor.Dims.AddRange(dims);
+            else
+                tensor.Dims.Add(values.Count());
+            return tensor;
+        }
+
+        // Make byte vector (i.e., 1-D tensor) with dims=null. Otherwise, dims is used as the shape of the produced tensor.
+        public static TensorProto MakeUInt8s(string name, IEnumerable<byte> values, IEnumerable<long> dims = null)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = (int)TensorProto.Types.DataType.Uint8;
+            List<int> ints = new List<int>();
+
+            foreach (var value in values)
+            {
+                ints.Add(value);
+            }
+
+            tensor.Int32Data.AddRange(ints);
             if (dims != null)
                 tensor.Dims.AddRange(dims);
             else

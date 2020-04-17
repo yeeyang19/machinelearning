@@ -266,5 +266,15 @@ namespace Microsoft.ML.Model.OnnxConverter
         /// <param name="makeUniqueName">Whether a unique name should be picked for this initializer.</param>
         /// <returns>The initializer's ONNX name</returns>
         public abstract string AddInitializer(IEnumerable<ulong> values, bool isUint64, IEnumerable<long> dims, string name = null, bool makeUniqueName = true);
+
+        /// <summary>
+        /// Call this function to declare a global byte tensor
+        /// </summary>
+        /// <param name="values">The bytes which are going to be added into the ONNX graph</param>
+        /// <param name="dims">The shape of the bytes</param>
+        /// <param name="name">A string used as a seed to generate this initializer's name in the ONNX graph.</param>
+        /// <param name="makeUniqueName">Whether a unique name should be picked for this initializer.</param>
+        /// <returns>The initializer's ONNX name</returns>
+        public abstract string AddInitializer(IEnumerable<byte> values, IEnumerable<long> dims, string name = null, bool makeUniqueName = true);
     }
 }

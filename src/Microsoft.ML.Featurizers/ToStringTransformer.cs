@@ -18,6 +18,7 @@ using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Featurizers;
 using Microsoft.ML.Internal.Utilities;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using Microsoft.Win32.SafeHandles;
@@ -1492,7 +1493,7 @@ namespace Microsoft.ML.Featurizers
 
         #endregion ColumnInfo
 
-        private sealed class Mapper : MapperBase
+        private sealed class Mapper : MapperBase, ISaveAsOnnx
         {
             private static readonly FuncInstanceMethodInfo1<Mapper, DataViewRow, int, Delegate> _makeGetterMethodInfo
                 = FuncInstanceMethodInfo1<Mapper, DataViewRow, int, Delegate>.Create(target => target.MakeGetter<int>);
@@ -1555,6 +1556,32 @@ namespace Microsoft.ML.Featurizers
             }
 
             private protected override void SaveModel(ModelSaveContext ctx) => _parent.SaveModel(ctx);
+
+            public void SaveAsOnnx(OnnxContext ctx)
+            {
+                Host.CheckValue(ctx, nameof(ctx));
+                Contracts.Assert(CanSaveOnnx(ctx));
+
+                string opType = "StringTransformer";
+
+                foreach (var column in _parent._columns)
+                {
+                    var srcVariableName = ctx.GetVariableName(column.Source);
+                    if (!ctx.ContainsColumn(srcVariableName))
+                        continue;
+
+                    var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, column.Name);
+
+                    var state = column.CreateTransformerSaveData();
+                    long[] dimensions = new long[] { state.Length };
+                    var outputList = new List<string>() { dstVariableName };
+
+                    var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), srcVariableName },
+                            outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                }
+            }
+
+            public bool CanSaveOnnx(OnnxContext ctx) => true;
         }
     }
 
