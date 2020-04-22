@@ -334,5 +334,205 @@ namespace Microsoft.ML.Tests.Transformers
             TestEstimatorCore(pipeline, data);
             Done();
         }
+
+        [NotCentOS7Fact]
+        public void SimpleNonStringGrainMinTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = 1, ColA = 1.0 },
+                new { GrainA = 1, ColA = 2.0 },
+                new { GrainA = 1, ColA = 3.0 },
+                new { GrainA = 1, ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Min, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> columnName = default;
+
+            var annotations = addedColumn.Annotations;
+            var columnAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
+
+            annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
+
+            Assert.Equal("ColA_Min_MinWin1_MaxWin1", columnName.ToString());
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void SimpleNonStringGrainMeanTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = true, ColA = 1.0 },
+                new { GrainA = true, ColA = 2.0 },
+                new { GrainA = true, ColA = 3.0 },
+                new { GrainA = true, ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> columnName = default;
+
+            var annotations = addedColumn.Annotations;
+            var columnAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
+
+            annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
+
+            Assert.Equal("ColA_Mean_MinWin1_MaxWin1", columnName.ToString());
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void SimpleNonStringGrainMaxTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = 1d, ColA = 1.0 },
+                new { GrainA = 1d, ColA = 2.0 },
+                new { GrainA = 1d, ColA = 3.0 },
+                new { GrainA = 1d, ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Max, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> columnName = default;
+
+            var annotations = addedColumn.Annotations;
+            var columnAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
+
+            annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
+
+            Assert.Equal("ColA_Max_MinWin1_MaxWin1", columnName.ToString());
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void SimpleMultipleNonStringGrainMaxTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = 1d, GrainB = true, ColA = 1.0 },
+                new { GrainA = 1d, GrainB = true, ColA = 2.0 },
+                new { GrainA = 1d, GrainB = true, ColA = 3.0 },
+                new { GrainA = 1d, GrainB = true, ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Max, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> columnName = default;
+
+            var annotations = addedColumn.Annotations;
+            var columnAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
+
+            annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
+
+            Assert.Equal("ColA_Max_MinWin1_MaxWin1", columnName.ToString());
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
     }
 }

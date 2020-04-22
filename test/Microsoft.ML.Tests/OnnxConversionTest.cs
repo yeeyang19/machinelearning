@@ -12,6 +12,7 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
+using Microsoft.ML.Featurizers;
 using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.RunTests;
 using Microsoft.ML.Runtime;
@@ -1761,6 +1762,376 @@ namespace Microsoft.ML.Tests
             var onnxTextModelPath = GetOutputPath(subDir, onnxFileName);
             SaveOnnxModel(onnxModel, null, onnxTextModelPath);
             CheckEquality(subDir, onnxFileName, digitsOfPrecision: 1);
+
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        void ToStringTransformerConversionTest()
+        {
+            var mlContext = new MLContext(seed: 1);
+
+            // Convert float -> string
+            var floatDataList = new[] { new { data = 1f }, new { data = float.NaN } };
+            var data = mlContext.Data.LoadFromEnumerable(floatDataList);
+
+            // Convert float -> string
+            var loadedDataList = new[] { new { f0 = 1, f1 = 1f, f2 = 1d }};
+            var loadedData = mlContext.Data.LoadFromEnumerable(loadedDataList);
+
+            var pipeline = mlContext.Transforms.FeaturizerString("dataout", "data");
+            var model = pipeline.Fit(data);
+            var transformedData = model.Transform(data);
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            SaveOnnxModel(onnxModel, "C:\\Temp\\tostring.onnx", null);
+
+            var onnxFileName = "stringfeat.onnx";
+            var onnxModelPath = GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            if (IsOnnxRuntimeSupported())
+            {
+                // Evaluate the saved ONNX model using the data used to train the ML.NET pipeline.
+                string[] inputNames = onnxModel.Graph.Input.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                string[] outputNames = onnxModel.Graph.Output.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                var onnxEstimator = mlContext.Transforms.ApplyOnnxModel(outputNames, inputNames, onnxModelPath);
+                var onnxTransformer = onnxEstimator.Fit(data);
+                var onnxResult = onnxTransformer.Transform(data);
+
+                CompareSelectedColumns<ReadOnlyMemory<char>>(transformedData.Schema[1].Name, transformedData.Schema[1].Name, transformedData, onnxResult);
+            }
+
+            // Convert int -> string
+            var intDataList = new[] { new { data = 1 }, new { data = int.MinValue }, new { data = int.MaxValue } };
+            data = mlContext.Data.LoadFromEnumerable(intDataList);
+
+            pipeline = mlContext.Transforms.FeaturizerString("dataout", "data");
+            model = pipeline.Fit(data);
+            transformedData = model.Transform(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "stringfeat.onnx";
+            onnxModelPath = GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            if (IsOnnxRuntimeSupported())
+            {
+                // Evaluate the saved ONNX model using the data used to train the ML.NET pipeline.
+                string[] inputNames = onnxModel.Graph.Input.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                string[] outputNames = onnxModel.Graph.Output.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                var onnxEstimator = mlContext.Transforms.ApplyOnnxModel(outputNames, inputNames, onnxModelPath);
+                var onnxTransformer = onnxEstimator.Fit(data);
+                var onnxResult = onnxTransformer.Transform(data);
+
+                CompareSelectedColumns<ReadOnlyMemory<char>>(transformedData.Schema[1].Name, transformedData.Schema[1].Name, transformedData, onnxResult);
+            }
+
+            // Convert bool -> string
+            var boolDataList = new[] { new { data = true }, new { data = false } };
+            data = mlContext.Data.LoadFromEnumerable(boolDataList);
+
+            pipeline = mlContext.Transforms.FeaturizerString("dataout", "data");
+            model = pipeline.Fit(data);
+            transformedData = model.Transform(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "stringfeat.onnx";
+            onnxModelPath = GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            if (IsOnnxRuntimeSupported())
+            {
+                // Evaluate the saved ONNX model using the data used to train the ML.NET pipeline.
+                string[] inputNames = onnxModel.Graph.Input.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                string[] outputNames = onnxModel.Graph.Output.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                var onnxEstimator = mlContext.Transforms.ApplyOnnxModel(outputNames, inputNames, onnxModelPath);
+                var onnxTransformer = onnxEstimator.Fit(data);
+                var onnxResult = onnxTransformer.Transform(data);
+
+                CompareSelectedColumns<ReadOnlyMemory<char>>(transformedData.Schema[1].Name, transformedData.Schema[1].Name, transformedData, onnxResult);
+            }
+
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        void TimeSeriesImputerConversionTest()
+        {
+            var mlContext = new MLContext(seed: 1);
+
+            // Check floats.
+            //var dataList = new[] { new { date = 1L, grain = "A", data = 1f, dataA = float.NaN }, new { date = 2L, grain = "A", data = float.NaN, dataA = 2f } };
+            var now = DateTime.Now;
+            var dataList = new[] { new { date = 1L, grain = "A", data = 2f, dataA = 1f }, new { date = 2L, grain = "A", data = float.NaN, dataA = float.NaN } };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+            var cData = mlContext.Data.Cache(data);
+            var pipeline = mlContext.Transforms.ReplaceMissingTimeSeriesValues("date", new string[] { "grain" }, TimeSeriesImputerEstimator.ImputationStrategy.Median);
+            var model = pipeline.Fit(cData);
+            var transformedData = model.Transform(cData);
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, cData);
+
+            //var onnxFileName = "tsi.onnx";
+            var onnxModelPath = "C:\\temp\\ort\\tsi.onnx";//GetOutputPath(onnxFileName);
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        void ShortGrainDropperConversionTest()
+        {
+            var mlContext = new MLContext(seed: 1);
+
+            var dataList = new[] {
+                new { GrainA = true, GrainB = 1, Value = 0 },
+                new { GrainA = false, GrainB = 1, Value = 0 },
+                new { GrainA = true, GrainB = 1, Value = 1 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA", "GrainB" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            //var onnxFileName = "tsi.onnx";
+            var onnxModelPath = "C:\\temp\\ort\\shortgrain.onnx";//GetOutputPath(onnxFileName);
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            mlContext = new MLContext(seed: 1);
+
+            var dataList2 = new[] {
+                new { GrainA = "one",  Value = 0 },
+                new { GrainA = "two",  Value = 0 },
+                new { GrainA = "one" , Value = 1 }
+            };
+            data = mlContext.Data.LoadFromEnumerable(dataList2);
+
+            pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA" }, 2);
+            model = pipeline.Fit(data);
+            output = model.Transform(data);
+            schema = output.Schema;
+
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            //var onnxFileName = "tsi.onnx";
+            onnxModelPath = "C:\\temp\\ort\\shortgrain2.onnx";//GetOutputPath(onnxFileName);
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            Done();
+        }
+
+        void RollingWindowConversionTest()
+        {
+            var mlContext = new MLContext(seed: 1);
+
+            // Check floats.
+            //var dataList = new[] { new { date = 1L, grain = "A", data = 1f, dataA = float.NaN }, new { date = 2L, grain = "A", data = float.NaN, dataA = 2f } };
+            var dataList = new[] {
+                new { GrainA = "Grain", ColA = 1.0 },
+                new { GrainA = "Grain", ColA = 2.0 },
+                new { GrainA = "Grain", ColA = 3.0 },
+                new { GrainA = "Grain", ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            var pipeline = mlContext.Transforms.ReplaceMissingTimeSeriesValues("date", new string[] { "grain" }, TimeSeriesImputerEstimator.ImputationStrategy.Median);
+            var model = pipeline.Fit(data);
+            var transformedData = model.Transform(data);
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            //var onnxFileName = "tsi.onnx";
+            var onnxModelPath = "C:\\temp\\ort\\rw_1grain_1col_hor1_min1_max1.onnx";//GetOutputPath(onnxFileName);
+            var prev2 = transformedData.Preview();
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+            // Can't verify the results here, so just used to export the model.
+
+            if (IsOnnxRuntimeSupported())
+            {
+                // Evaluate the saved ONNX model using the data used to train the ML.NET pipeline.
+                string[] inputNames = onnxModel.Graph.Input.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                string[] outputNames = onnxModel.Graph.Output.Select(valueInfoProto => valueInfoProto.Name).ToArray();
+                var i = onnxModel.Graph.Input;
+                var o = onnxModel.Graph.Output;
+                var onnxEstimator = mlContext.Transforms.ApplyOnnxModel(outputNames, inputNames, onnxModelPath);
+                var onnxTransformer = onnxEstimator.Fit(data);
+                var onnxResult = onnxTransformer.Transform(data);
+                var prev = onnxResult.Preview();
+            }
+
+            Done();
+        }
+
+        // Not validating, just creating models.
+        [NotCentOS7Fact]
+        void CategorialImputerConversionTest()
+        {
+            // FLOAT
+            var mlContext = new MLContext(seed: 1);
+
+            var floatDataList = new[] { new { data = 1f }, new { data = float.NaN } };
+            var data = mlContext.Data.LoadFromEnumerable(floatDataList);
+
+            var pipeline = mlContext.Transforms.ImputeCategories("dataout", "data");
+            var model = pipeline.Fit(data);
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            var onnxFileName = "catimp_float_1col_freq1.onnx";
+            var onnxModelPath = "C:\\Temp\\" + onnxFileName;//GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            // DOUBLE
+            mlContext = new MLContext(seed: 1);
+
+            var doubleDataList = new[] { new { data = 1d }, new { data = double.NaN } };
+            data = mlContext.Data.LoadFromEnumerable(doubleDataList);
+
+            pipeline = mlContext.Transforms.ImputeCategories("dataout", "data");
+            model = pipeline.Fit(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "catimp_double_1col_freq1.onnx";
+            onnxModelPath = "C:\\Temp\\" + onnxFileName;//GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            // STRING
+            mlContext = new MLContext(seed: 1);
+
+            var stringDataList = new[] { new { data = "one" }, new { data = "" } };
+            data = mlContext.Data.LoadFromEnumerable(stringDataList);
+
+            pipeline = mlContext.Transforms.ImputeCategories("dataout", "data");
+            model = pipeline.Fit(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "catimp_string_1col_freq1.onnx";
+            onnxModelPath = "C:\\Temp\\" + onnxFileName;//GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            // 2 COLUMNS SAME TYPE
+            mlContext = new MLContext(seed: 1);
+
+            var col2DataList = new[] { new { data1 = 1d, data2 = 2d }, new { data1 = double.NaN, data2 = double.NaN} };
+            data = mlContext.Data.LoadFromEnumerable(col2DataList);
+
+            pipeline = mlContext.Transforms.ImputeCategories(new InputOutputColumnPair[] { new InputOutputColumnPair ("data1out", "data1" ), new InputOutputColumnPair("data2out", "data2") });
+            model = pipeline.Fit(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "catimp_double_2col_freq1_freq2.onnx";
+            onnxModelPath = "C:\\Temp\\" + onnxFileName;//GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            // 2 COLUMNS DIFFERENT TYPE
+            mlContext = new MLContext(seed: 1);
+
+            var col2DifDataList = new[] { new { data1 = 1d, data2 = "two" }, new { data1 = double.NaN, data2 = "" } };
+            data = mlContext.Data.LoadFromEnumerable(col2DifDataList);
+
+            pipeline = mlContext.Transforms.ImputeCategories(new InputOutputColumnPair[] { new InputOutputColumnPair("data1out", "data1"), new InputOutputColumnPair("data2out", "data2") });
+            model = pipeline.Fit(data);
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            onnxFileName = "catimp_double_string_2col_freq1_freq2.onnx";
+            onnxModelPath = "C:\\Temp\\" + onnxFileName;//GetOutputPath(onnxFileName);
+
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            Done();
+        }
+
+        private class SimpleRWTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(1, 2)]
+            public double[] ColA_Vec { get; set; }
+        }
+
+        [NotCentOS7Fact]
+        void ForecastingPivotConversionTest()
+        {
+            // 1 input column of type vector, dimensions 3,4
+            var mlContext = new MLContext(seed: 1);
+
+            var oneVecDataList = new[] {
+                new { ColA = 1.0, ColA_Vec = new [] { 1d, 2d, 3d, 4d, 5d, 6d, 7d, 8d, 9d, 10d, 11d, 12d } }
+            };
+
+            var annotations = new DataViewSchema.Annotations.Builder();
+            ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = "ColA_Vec_Lag1,ColA_Vec_Lead1,ColA_Vec_Lag2".AsMemory();
+
+            annotations.Add("ColumnNames=ColA_Vec_Lag1,ColA_Vec_Lead1,ColA_Vec_Lag2", TextDataViewType.Instance, nameValueGetter);
+
+            var schemaBuilder = new DataViewSchema.Builder();
+            schemaBuilder.AddColumn("ColA", NumberDataViewType.Double);
+            schemaBuilder.AddColumn("ColA_Vec", new VectorDataViewType(NumberDataViewType.Double, 3, 4), annotations.ToAnnotations());
+
+            var data = mlContext.Data.LoadFromEnumerable(oneVecDataList, schemaBuilder.ToSchema());
+
+            var pipeline = mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Vec" });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            //var onnxFileName = "forecastpivot.onnx";
+            var onnxModelPath = "C:\\temp\\ort\\ForecastingPivot\\3x4_input_matrix.onnx";//GetOutputPath(onnxFileName);
+            var prev = output.Preview();
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
+
+
+            // 2 input columns,vector dimensions 3,4; vector dimensions 2,4
+            var twoVecdataList = new[] {
+                new { ColA = 1.0, ColA_Vec = new [] { 1d, 2d, 3d, 4d, 5d, 6d, 7d, 8d, 9d, 10d, 11d, 12d }, Vec2 = new [] { 1d, 2d, 3d, 4d, 5d, 6d, 7d, 8d } }
+            };
+
+            var colAVecAnnotations = new DataViewSchema.Annotations.Builder();
+            nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = "ColA_Vec_Lag1,ColA_Vec_Lead1,ColA_Vec_Lag2".AsMemory();
+
+            colAVecAnnotations.Add("ColumnNames=ColA_Vec_Lag1,ColA_Vec_Lead1,ColA_Vec_Lag2", TextDataViewType.Instance, nameValueGetter);
+
+            var vec2Annotations = new DataViewSchema.Annotations.Builder();
+            ValueGetter<ReadOnlyMemory<char>> vec2NameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = "Vec2_Lag2,Vec2_Lag5".AsMemory();
+
+            vec2Annotations.Add("ColumnNames=Vec2_Lag2,Vec2_Lag5", TextDataViewType.Instance, vec2NameValueGetter);
+
+            schemaBuilder = new DataViewSchema.Builder();
+            schemaBuilder.AddColumn("ColA", NumberDataViewType.Double);
+            schemaBuilder.AddColumn("ColA_Vec", new VectorDataViewType(NumberDataViewType.Double, 3, 4), colAVecAnnotations.ToAnnotations());
+            schemaBuilder.AddColumn("Vec2", new VectorDataViewType(NumberDataViewType.Double, 2, 4), vec2Annotations.ToAnnotations());
+
+            data = mlContext.Data.LoadFromEnumerable(twoVecdataList, schemaBuilder.ToSchema());
+
+            pipeline = mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Vec", "Vec2" });
+            model = pipeline.Fit(data);
+            output = model.Transform(data);
+            schema = output.Schema;
+
+            onnxModel = mlContext.Model.ConvertToOnnxProtobuf(model, data);
+
+            //var onnxFileName = "forecastpivot.onnx";
+            onnxModelPath = "C:\\temp\\ort\\ForecastingPivot\\3x4_2x4_input_matrix.onnx";//GetOutputPath(onnxFileName);
+            prev = output.Preview();
+            SaveOnnxModel(onnxModel, onnxModelPath, null);
 
             Done();
         }

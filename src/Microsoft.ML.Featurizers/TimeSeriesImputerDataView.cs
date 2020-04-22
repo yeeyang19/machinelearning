@@ -729,16 +729,21 @@ namespace Microsoft.ML.Transforms
         public void SaveAsOnnx(OnnxContext ctx)
         {
 
-            // Create string "state" for the string featurizer
-            var state = new byte[] { 1, 0, 0, 0 };
-            long[] dimensions = new long[] { state.Length };
+            // Create string "state" for the string featurizer for float and double type
+            var fdState = new byte[] { 1, 0, 0, 0, 1, 0, 0, 0 };
+            long[] fdDimensions = new long[] { fdState.Length };
 
-            // Make the state initializer
-            var initializer = ctx.AddInitializer(state, dimensions, "TSIStateInitializer");
+            // Create string "state" for the string featurizer for non float and double type
+            var nfdState = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 };
+            long[] nfdDimensions = new long[] { nfdState.Length };
+
+            // Make the state initializers
+            var fdInitializer = ctx.AddInitializer(fdState, fdDimensions, "TSIFDStateInitializer");
+            var nfdInitializer = ctx.AddInitializer(nfdState, nfdDimensions, "TSINFDStateInitializer");
 
             // Convert individual columns to strings
-            CreateOnnxStringConversion(ctx, _grainColumns, initializer, out string[] grainStringColumns);
-            CreateOnnxStringConversion(ctx, _dataColumns, initializer, out string[] dataStringColumns);
+            CreateOnnxStringConversion(ctx, _grainColumns, fdInitializer, nfdInitializer, out string[] grainStringColumns);
+            CreateOnnxStringConversion(ctx, _dataColumns, fdInitializer, nfdInitializer, out string[] dataStringColumns);
 
             // Concatenate those into large tensors
             CreateOnnxColumnConcatenation(ctx, grainStringColumns, "graincolumns", out string grainConcatColumnsName);
@@ -746,8 +751,6 @@ namespace Microsoft.ML.Transforms
 
             // Make squeeze node to remove "Batch" from the inputs
             CreateSqueezeNode(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
-            //CreateSqueezeNode(ctx, grainConcatColumnsName, TextDataViewType.Instance);
-            //CreateSqueezeNode(ctx, dataConcatColumnsName, TextDataViewType.Instance);
 
             // Impute
             CreateTsiConversion(ctx, grainConcatColumnsName, dataConcatColumnsName);
@@ -757,12 +760,12 @@ namespace Microsoft.ML.Transforms
             CreateOnnxColumnSplit(ctx, "ImputedData", dataStringColumns, out string[] dataColumnNames);
 
             // Convert back to original data type
-            CreateOnnxFromStringConversion(ctx, grainColumnNames, _grainColumns);
-            CreateOnnxFromStringConversion(ctx, dataColumnNames, _dataColumns);
+            CreateOnnxFromStringConversion(ctx, grainColumnNames, fdInitializer, nfdInitializer, _grainColumns);
+            CreateOnnxFromStringConversion(ctx, dataColumnNames, fdInitializer, nfdInitializer, _dataColumns);
 
             // Fix shape for IsRowImputed column
-            FixShapes(ctx, "IsRowImputed", BooleanDataViewType.Instance);
-            FixShapes(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
+            //FixShapes(ctx, "IsRowImputed", BooleanDataViewType.Instance);
+            //FixShapes(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
         }
 
         private void CreateSqueezeNode(OnnxContext ctx, string columnName, DataViewType columnType)
@@ -775,7 +778,7 @@ namespace Microsoft.ML.Transforms
 
             var node = ctx.CreateNode(opType, column, dstVariableName, ctx.GetNodeName(opType), "");
 
-            node.AddAttribute("axes", new long[] { 0 });
+            node.AddAttribute("axes", new long[] { 1 });
 
         }
 
@@ -807,24 +810,37 @@ namespace Microsoft.ML.Transforms
                     outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
         }
 
-        private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, string initializer, out string[] outputColumns)
+        private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, string fdInitializer, string nfdInitializer, out string[] outputColumns)
         {
             string opType = "StringTransformer";
             outputColumns = new string[inputColumns.Length];
 
             for (int i = 0; i < inputColumns.Length; i++)
             {
+                var baseType = _schema[inputColumns[i]].Type.RawType;
                 var srcVariableName = ctx.GetVariableName(inputColumns[i]);
+
+                // If we are already a string no need to convert.
+                if (baseType == typeof(ReadOnlyMemory<char>))
+                {
+                    outputColumns[i] = srcVariableName;
+                    continue;
+                }
 
                 var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, srcVariableName + "-stringoutput");
                 outputColumns[i] = dstVariableName;
-                var node = ctx.CreateNode(opType, new[] { initializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+
+                // Have to pass the correct native state based on the type.
+                if (baseType == typeof(float) || baseType == typeof(double))
+                    ctx.CreateNode(opType, new[] { fdInitializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                else
+                    ctx.CreateNode(opType, new[] { nfdInitializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
             }
         }
 
-        private void CreateOnnxFromStringConversion(OnnxContext ctx, string[] inputColumns, string[] outputColumns)
+        private void CreateOnnxFromStringConversion(OnnxContext ctx, string[] inputColumns, string fdInitializer, string nfdInitializer, string[] outputColumns)
         {
-            string opType = "Cast";
+            string opType = "FromStringTransformer";
 
             for (int i = 0; i < inputColumns.Length; i++)
             {
@@ -833,33 +849,40 @@ namespace Microsoft.ML.Transforms
                 if (_schema[colIndex].Type.RawType == typeof(ReadOnlyMemory<char>))
                     continue;
 
+                OnnxNode node;
+
+                var baseType = _schema[colIndex].Type.RawType;
                 var dstVariableName = ctx.AddIntermediateVariable(_schema[colIndex].Type, outputColumns[i]);
-                var node = ctx.CreateNode(opType, inputColumns[i], dstVariableName, ctx.GetNodeName(opType), "");
+
+                if (baseType == typeof(float) || baseType == typeof(double))
+                    node = ctx.CreateNode(opType, new[] { fdInitializer, inputColumns[i] }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                else
+                    node = ctx.CreateNode(opType, new[] { nfdInitializer, inputColumns[i] }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
 
                 if (_schema[colIndex].Type.RawType == typeof(float))
-                    node.AddAttribute("to", 1);
+                    node.AddAttribute("result_type", 1);
                 if (_schema[colIndex].Type.RawType == typeof(byte))
-                    node.AddAttribute("to", 2);
+                    node.AddAttribute("result_type", 2);
                 if (_schema[colIndex].Type.RawType == typeof(sbyte))
-                    node.AddAttribute("to", 3);
+                    node.AddAttribute("result_type", 3);
                 if (_schema[colIndex].Type.RawType == typeof(ushort))
-                    node.AddAttribute("to", 4);
+                    node.AddAttribute("result_type", 4);
                 if (_schema[colIndex].Type.RawType == typeof(short))
-                    node.AddAttribute("to", 5);
+                    node.AddAttribute("result_type", 5);
                 if (_schema[colIndex].Type.RawType == typeof(int))
-                    node.AddAttribute("to", 6);
+                    node.AddAttribute("result_type", 6);
                 if (_schema[colIndex].Type.RawType == typeof(uint))
-                    node.AddAttribute("to", 12);
+                    node.AddAttribute("result_type", 12);
                 if (_schema[colIndex].Type.RawType == typeof(long))
-                    node.AddAttribute("to", 7);
+                    node.AddAttribute("result_type", 7);
                 if (_schema[colIndex].Type.RawType == typeof(ulong))
-                    node.AddAttribute("to", 13);
+                    node.AddAttribute("result_type", 13);
                 if (_schema[colIndex].Type.RawType == typeof(double))
-                    node.AddAttribute("to", 11);
+                    node.AddAttribute("result_type", 11);
                 if (_schema[colIndex].Type.RawType == typeof(bool))
-                    node.AddAttribute("to", 9);
+                    node.AddAttribute("result_type", 9);
                 if (_schema[colIndex].Type.RawType == typeof(ReadOnlyMemory<char>))
-                    node.AddAttribute("to", 8);
+                    node.AddAttribute("result_type", 8);
             }
         }
 

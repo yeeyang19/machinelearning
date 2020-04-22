@@ -119,18 +119,12 @@ namespace Microsoft.ML.Featurizers
 
         public ShortDropTransformer Fit(IDataView input)
         {
-            if (!AllGrainColumnsAreStrings(input.Schema, _options.GrainColumns))
-                throw new InvalidOperationException("Grain columns can only be of type string");
-
             return new ShortDropTransformer(_host, _options, input);
         }
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
-            // We dont change the schema, we just drop rows. Still validate grain columns are correct type
-            if (!AllGrainColumnsAreStrings(inputSchema, _options.GrainColumns))
-                throw new InvalidOperationException("Grain columns can only be of type string");
-
+            // We dont change the schema, we just drop rows.
             return inputSchema;
         }
     }
@@ -312,10 +306,44 @@ namespace Microsoft.ML.Featurizers
             for (int i = 0; i < _options.GrainColumns.Length; i++)
             {
                 // Inititialize the enumerator and move it to a valid position.
-                grainGetters[i] = cursor.GetGetter<ReadOnlyMemory<char>>(input.Schema[_options.GrainColumns[i]]);
+                if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(sbyte))
+                    grainGetters[i] = GetGrainGetter<sbyte>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(Int16))
+                    grainGetters[i] = GetGrainGetter<Int16>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(Int32))
+                    grainGetters[i] = GetGrainGetter<Int32>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(Int64))
+                    grainGetters[i] = GetGrainGetter<Int64>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(byte))
+                    grainGetters[i] = GetGrainGetter<byte>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(UInt16))
+                    grainGetters[i] = GetGrainGetter<UInt16>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(UInt32))
+                    grainGetters[i] = GetGrainGetter<UInt32>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(UInt64))
+                    grainGetters[i] = GetGrainGetter<UInt64>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(float))
+                    grainGetters[i] = GetGrainGetter<float>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(double))
+                    grainGetters[i] = GetGrainGetter<double>(_options.GrainColumns[i], ref cursor);
+                else if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(bool))
+                    grainGetters[i] = GetGrainGetter<bool>(_options.GrainColumns[i], ref cursor);
+                if (cursor.Schema[_options.GrainColumns[i]].Type.RawType == typeof(ReadOnlyMemory<char>))
+                    grainGetters[i] = cursor.GetGetter<ReadOnlyMemory<char>>(cursor.Schema[_options.GrainColumns[i]]);
             }
 
             return cursor.MoveNext();
+        }
+
+        private ValueGetter<ReadOnlyMemory<char>> GetGrainGetter<T>(string grainColumn, ref DataViewRowCursor cursor)
+        {
+            var getter = cursor.GetGetter<T>(cursor.Schema[grainColumn]);
+            T value = default;
+            return (ref ReadOnlyMemory<char> dst) =>
+            {
+                getter(ref value);
+                dst = value.ToString().AsMemory();
+            };
         }
 
         public bool IsRowToRowMapper => false;
@@ -460,8 +488,11 @@ namespace Microsoft.ML.Featurizers
                 string opType = "ShortGrainDropperTransformer";
                 string boolFilterColumnName = "ShortGrainDropper_BoolTemp";
 
+                // Convert grain columns to strings
+                CreateOnnxStringConversion(ctx, _grainColumns, out string[] grainStringColumns);
+
                 // Combine all the grains into one tensor
-                CreateOnnxColumnConcatenation(ctx, _parent._options.GrainColumns, "grains", out string grainsTensorName);
+                CreateOnnxColumnConcatenation(ctx, grainStringColumns, "grains", out string grainsTensorName);
 
                 var dstVariableName = ctx.AddIntermediateVariable(BooleanDataViewType.Instance, boolFilterColumnName);
 
@@ -475,6 +506,35 @@ namespace Microsoft.ML.Featurizers
                 InvertBoolArray(ctx, boolFilterColumnName);
 
                 DropRowsFromAllColumns(ctx, boolFilterColumnName);
+            }
+
+            private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, out string[] outputColumns)
+            {
+                // Create string "state" for the string featurizer for float and double type
+                var state = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 };
+                long[] dimensions = new long[] { state.Length };
+
+                string opType = "StringTransformer";
+                outputColumns = new string[inputColumns.Length];
+
+                for (int i = 0; i < inputColumns.Length; i++)
+                {
+                    var baseType = _schema[inputColumns[i]].Type.RawType;
+                    var srcVariableName = ctx.GetVariableName(inputColumns[i]);
+
+                    // If we are already a string no need to convert.
+                    if (baseType == typeof(ReadOnlyMemory<char>))
+                    {
+                        outputColumns[i] = srcVariableName;
+                        continue;
+                    }
+
+                    var initializer = ctx.AddInitializer(state, dimensions, "ShortGrainStateInitializer");
+                    var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, srcVariableName + "-stringoutput");
+                    outputColumns[i] = dstVariableName;
+
+                    ctx.CreateNode(opType, new[] { initializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                }
             }
 
             private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
@@ -540,7 +600,7 @@ namespace Microsoft.ML.Featurizers
                     _grainHandles = new GCHandle[grainColumns.Length];
                     _grainArray = new IntPtr[grainColumns.Length];
 
-                    InitializeGrainGetters(grainColumns, ref _grainGetters);
+                    InitializeGrainGetters(grainColumns);
                 }
 
                 public sealed override ValueGetter<DataViewRowId> GetIdGetter()
@@ -616,15 +676,48 @@ namespace Microsoft.ML.Featurizers
 
                 public sealed override long Batch => _input.Batch;
 
-                private void InitializeGrainGetters(string[] grainColumns, ref ValueGetter<ReadOnlyMemory<char>>[] grainGetters)
+                private void InitializeGrainGetters(string[] grainColumns)
                 {
                     // Create getters for the source grain columns.
 
                     for (int i = 0; i < _grainGetters.Length; i++)
                     {
-                        // Inititialize the getter and move it to a valid position.
-                        grainGetters[i] = _input.GetGetter<ReadOnlyMemory<char>>(_input.Schema[grainColumns[i]]);
+                        if (_input.Schema[grainColumns[i]].Type.RawType == typeof(sbyte))
+                            _grainGetters[i] = GetGrainGetter<sbyte>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(Int16))
+                            _grainGetters[i] = GetGrainGetter<Int16>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(Int32))
+                            _grainGetters[i] = GetGrainGetter<Int32>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(Int64))
+                            _grainGetters[i] = GetGrainGetter<Int64>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(byte))
+                            _grainGetters[i] = GetGrainGetter<byte>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(UInt16))
+                            _grainGetters[i] = GetGrainGetter<UInt16>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(UInt32))
+                            _grainGetters[i] = GetGrainGetter<UInt32>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(UInt64))
+                            _grainGetters[i] = GetGrainGetter<UInt64>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(float))
+                            _grainGetters[i] = GetGrainGetter<float>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(double))
+                            _grainGetters[i] = GetGrainGetter<double>(grainColumns[i]);
+                        else if (_input.Schema[grainColumns[i]].Type.RawType == typeof(bool))
+                            _grainGetters[i] = GetGrainGetter<bool>(grainColumns[i]);
+                        if (_input.Schema[grainColumns[i]].Type.RawType == typeof(ReadOnlyMemory<char>))
+                            _grainGetters[i] = _input.GetGetter<ReadOnlyMemory<char>>(_input.Schema[grainColumns[i]]);
                     }
+                }
+
+                private ValueGetter<ReadOnlyMemory<char>> GetGrainGetter<T>(string grainColumn)
+                {
+                    var getter = _input.GetGetter<T>(_input.Schema[grainColumn]);
+                    T value = default;
+                    return (ref ReadOnlyMemory<char> dst) =>
+                    {
+                        getter(ref value);
+                        dst = value.ToString().AsMemory();
+                    };
                 }
             }
         }

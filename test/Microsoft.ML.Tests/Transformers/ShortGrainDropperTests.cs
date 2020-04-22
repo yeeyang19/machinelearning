@@ -17,18 +17,164 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [NotCentOS7Fact]
-        public void TestInvalidGrainTypes()
+        public void MultipleNonStringGrains2GrainColumnsPartialDropTest()
         {
             MLContext mlContext = new MLContext(1);
-            var dataList = new[] { new { GrainA = 4 } };
+            var dataList = new[] {
+                new { GrainA = true, GrainB = 1, Value = 0 },
+                new { GrainA = false, GrainB = 1, Value = 0 },
+                new { GrainA = true, GrainB = 1, Value = 1 }
+            };
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
-            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA", "GrainB" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we have 2 of grain A and 1 of grain B, should have all GrainA rows back and not GrainB.
+            Assert.True(rows.Length == 2);
+
+            // Also make sure that the value column was kept correctly.
+            Assert.True(cols[0].Values.Length == 2);
+            Assert.True(cols[1].Values.Length == 2);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void MultipleNonStringGrainsPartialDropTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = true, Value = 0 },
+                new { GrainA = false, Value = 0 },
+                new { GrainA = true, Value = 1 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
             var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
 
-            Assert.Throws<InvalidOperationException>(() => pipeline.Fit(data));
-            Assert.Throws<InvalidOperationException>(() => pipeline.GetOutputSchema(SchemaShape.Create(data.Schema)));
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
 
+            // Since min row count is 2 and we have 2 of grain A and 1 of grain B, should have all GrainA rows back and not GrainB.
+            Assert.True(rows.Length == 2);
+
+            // Also make sure that the value column was kept correctly.
+            Assert.True(cols[0].Values.Length == 2);
+            Assert.True(cols[1].Values.Length == 2);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void MultipleNonStringGrainsKeepTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = 1f, Value = 0 },
+                new { GrainA = 2f, Value = 1 },
+                new { GrainA = 1f, Value = 2 },
+                new { GrainA = 2f, Value = 3 }
+            };
+
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we have 2 of grain A and 2 of grain B, should have all rows back.
+            Assert.True(rows.Length == 4);
+
+            // Also make sure that the value column was kept correctly.
+            Assert.True(cols[0].Values.Length == 4);
+            Assert.True(cols[1].Values.Length == 4);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void SimpleNonStringGrainKeepTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = 2L, Value = 0 },
+                new { GrainA = 2L, Value = 1 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we have 2, should have all rows back.
+            Assert.True(rows.Length == 2);
+
+            // Also make sure that the value column was kept correctly.
+            Assert.True(cols[0].Values.Length == 2);
+            Assert.True(cols[1].Values.Length == 2);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void TestNonStringGrainSimpleDrop()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] { new { GrainA = 5, Value = 0 } };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            var pipeline = mlContext.Transforms.DropShortGrains(new string[] { "GrainA" }, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we only have 1, should have no rows back.
+            Assert.True(rows.Length == 0);
+
+            // Also make sure that the value column was dropped correctly.
+            Assert.True(cols[0].Values.Length == 0);
+            Assert.True(cols[1].Values.Length == 0);
+
+            TestEstimatorCore(pipeline, data);
             Done();
         }
 

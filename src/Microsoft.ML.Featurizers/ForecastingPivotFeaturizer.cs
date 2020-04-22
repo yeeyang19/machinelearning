@@ -10,6 +10,7 @@ using Microsoft.ML.CommandLine;
 using Microsoft.ML.Data;
 using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Featurizers;
+using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using static Microsoft.ML.Featurizers.CommonExtensions;
@@ -233,6 +234,7 @@ namespace Microsoft.ML.Featurizers
 
         private readonly IHost _host;
         private readonly ForecastingPivotFeaturizerEstimator.Options _options;
+        private List<string> _newColumns;
 
         #endregion
 
@@ -297,6 +299,9 @@ namespace Microsoft.ML.Featurizers
 
         public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
         {
+            // Need to track the new columns we are generating for the onnx export.
+            _newColumns = new List<string>();
+
             var schemaBuilder = new DataViewSchema.Builder();
             schemaBuilder.AddColumns(inputSchema.AsEnumerable());
 
@@ -317,7 +322,7 @@ namespace Microsoft.ML.Featurizers
                 foreach (var name in columnNames)
                 {
                     schemaBuilder.AddColumn(name, NumberDataViewType.Double);
-
+                    _newColumns.Add(name);
                 }
             }
 
@@ -366,7 +371,7 @@ namespace Microsoft.ML.Featurizers
 
         #region IDataView
 
-        internal sealed class ForecastingPivotFeaturizerDataView : IDataTransform
+        internal sealed class ForecastingPivotFeaturizerDataView : ITransformCanSaveOnnx
         {
             #region Typed Columns
             private ForecastingPivotTransformer _parent;
@@ -414,6 +419,51 @@ namespace Microsoft.ML.Featurizers
             {
                 _parent.Save(ctx);
             }
+
+            public void SaveAsOnnx(OnnxContext ctx)
+            {
+                _host.CheckValue(ctx, nameof(ctx));
+                Contracts.Assert(CanSaveOnnx(ctx));
+
+                string opType = "ForecastingPivotTransformer";
+
+                // Create string "state" for the forecast pivot featurizer
+                var state = new byte[] { 1, 0, 0, 0 };
+                long[] dimensions = new long[] { state.Length };
+
+                //string opType = "ForecastingPivotTransformer";
+
+                var sources = new List<string>();
+                var destinations = new List<string>();
+
+                // Add all pivot columns first
+                foreach (var column in _options.ColumnsToPivot)
+                {
+                    sources.Add(ctx.GetVariableName(column));
+                }
+
+                foreach (var column in _parent._newColumns)
+                {
+                    destinations.Add(ctx.AddIntermediateVariable(NumberDataViewType.Double, column));
+                }
+
+                // Add the rest of the columns except the horizon column
+                foreach (var column in Schema.Where(x => !_options.ColumnsToPivot.Contains(x.Name) && x.Name != _options.HorizonColumnName && !_parent._newColumns.Contains(x.Name)))
+                {
+                    sources.Add(ctx.GetVariableName(column.Name));
+                    destinations.Add(ctx.AddIntermediateVariable(column.Type, column.Name));
+                }
+
+                // Add the final horizon column
+                destinations.Add(ctx.AddIntermediateVariable(NumberDataViewType.UInt32, _options.HorizonColumnName));
+
+                var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State")}.Concat(sources),
+                        destinations, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+
+                node.AddAttribute("num_pivot_columns", _options.ColumnsToPivot.Length);
+            }
+
+            public bool CanSaveOnnx(OnnxContext ctx) => true;
 
             private sealed class Cursor : DataViewRowCursor
             {
@@ -634,6 +684,7 @@ namespace Microsoft.ML.Featurizers
 
                     return result;
                 }
+
             }
         }
 

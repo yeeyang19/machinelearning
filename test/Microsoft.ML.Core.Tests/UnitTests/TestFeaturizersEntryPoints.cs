@@ -65,9 +65,9 @@ namespace Microsoft.ML.RunTests
                             'GrainColumn': ['Grain'],
                             'Column' : [{ 'Name' : 'Target', 'Source' : 'Target' }],
                             'Data' : '$data',
-                            'Horizon': 2147483647,
-                            'MaxWindowSize' : 4294967294,
-                            'MinWindowSize' : 4294967294,
+                            'Horizon': 500000,
+                            'MaxWindowSize' : 500000,
+                            'MinWindowSize' : 500000,
                             'WindowCalculation' : 'Min'
                     },
                     'Outputs' : {
@@ -97,7 +97,7 @@ namespace Microsoft.ML.RunTests
             Assert.True(columnType.IsKnownSize);
             Assert.True(columnType.Dimensions.Length == 2);
             Assert.True(columnType.Dimensions[0] == 1);
-            Assert.True(columnType.Dimensions[1] == 2147483647);
+            Assert.True(columnType.Dimensions[1] == 500000);
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
             // Verify annotations are correct.
@@ -108,7 +108,7 @@ namespace Microsoft.ML.RunTests
 
             annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
 
-            Assert.Equal("Target_Min_MinWin4294967294_MaxWin4294967294", columnName.ToString());
+            Assert.Equal("Target_Min_MinWin500000_MaxWin500000", columnName.ToString());
         }
 
         [NotCentOS7Fact]

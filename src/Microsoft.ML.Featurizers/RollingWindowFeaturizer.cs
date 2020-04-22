@@ -25,8 +25,8 @@ using static Microsoft.ML.SchemaShape.Column;
 [assembly: LoadableClass(typeof(RollingWindowTransformer), null, typeof(SignatureLoadModel),
     RollingWindowTransformer.UserName, RollingWindowTransformer.LoaderSignature)]
 
-[assembly: LoadableClass(typeof(IRowMapper), typeof(RollingWindowTransformer), null, typeof(SignatureLoadRowMapper),
-RollingWindowTransformer.UserName, RollingWindowTransformer.LoaderSignature)]
+[assembly: LoadableClass(typeof(IDataTransform), typeof(RollingWindowTransformer), null, typeof(SignatureLoadDataTransform),
+    RollingWindowTransformer.UserName, RollingWindowTransformer.LoaderSignature)]
 
 [assembly: EntryPointModule(typeof(RollingWindowEntrypoint))]
 
@@ -253,9 +253,6 @@ namespace Microsoft.ML.Featurizers
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
-            if (!AllGrainColumnsAreStrings(inputSchema, _options.GrainColumns))
-                throw new InvalidOperationException("Grain columns can only be of type string");
-
             var columns = inputSchema.ToDictionary(x => x.Name);
 
             // These are used in generating the column name, but don't need to be recreated in the loop.
@@ -289,7 +286,7 @@ namespace Microsoft.ML.Featurizers
         }
     }
 
-    public sealed class RollingWindowTransformer : RowToRowTransformerBase, IDisposable
+    public sealed class RollingWindowTransformer : ITransformer, IDisposable
     {
         #region Class data members
 
@@ -299,13 +296,14 @@ namespace Microsoft.ML.Featurizers
         internal const string LoaderSignature = "RollingWindow";
 
         private TypedColumn[] _columns;
+        private readonly IHost _host;
         private RollingWindowEstimator.Options _options;
 
         #endregion
 
-        internal RollingWindowTransformer(IHostEnvironment host, IDataView input, RollingWindowEstimator.Options options) :
-            base(host.Register(nameof(RollingWindowTransformer)))
+        internal RollingWindowTransformer(IHostEnvironment host, IDataView input, RollingWindowEstimator.Options options)
         {
+            _host = host.Register(nameof(RollingWindowTransformer));
             var schema = input.Schema;
             _options = options;
 
@@ -317,11 +315,11 @@ namespace Microsoft.ML.Featurizers
         }
 
         // Factory method for SignatureLoadModel.
-        internal RollingWindowTransformer(IHostEnvironment host, ModelLoadContext ctx) :
-            base(host.Register(nameof(RollingWindowTransformer)))
+        internal RollingWindowTransformer(IHostEnvironment host, ModelLoadContext ctx)
         {
-            Host.CheckValue(ctx, nameof(ctx));
-            Host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
+            _host = host.Register(nameof(RollingWindowTransformer));
+            _host.CheckValue(ctx, nameof(ctx));
+            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
 
             ctx.CheckAtModel(GetVersionInfo());
 
@@ -383,11 +381,47 @@ namespace Microsoft.ML.Featurizers
             }
         }
 
-        // Factory method for SignatureLoadRowMapper.
-        private static IRowMapper Create(IHostEnvironment env, ModelLoadContext ctx, DataViewSchema inputSchema)
-            => new RollingWindowTransformer(env, ctx).MakeRowMapper(inputSchema);
+        // Factory method for SignatureLoadDataTransform.
+        private static IDataTransform Create(IHostEnvironment env, ModelLoadContext ctx, IDataView input)
+        {
+            return (IDataTransform)(new RollingWindowTransformer(env, ctx).Transform(input));
+        }
 
-        private protected override IRowMapper MakeRowMapper(DataViewSchema schema) => new Mapper(this, schema);
+        public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
+        {
+            // To add future support for when this will do multiple window sizes at once, output will be a 2d vector so nothing will need to change when that is implemented.
+
+            // Create annotations
+            // We create 4 annotations, these are used by the PivotFeaturizer.
+            // We create annotations for the minWindowSize, maxWindowSize, this featurizerName, and which calculation was performed.
+            // Since we can't get the value of the annotation from the schema shape, the current workaround is naming annotation with the value as well.
+            // This workaround will need to be removed when the limitation is resolved.
+            var schemaBuilder = new DataViewSchema.Builder();
+            schemaBuilder.AddColumns(inputSchema.AsEnumerable());
+
+            // These are used in generating the column name, but don't need to be recreated in the loop.
+            var calculationName = Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _options.WindowCalculation);
+            var minWinName = $"MinWin{_options.MinWindowSize}";
+            var maxWinName = $"MaxWin{_options.MaxWindowSize}";
+
+            for (int i = 0; i < _options.Column.Length; i++)
+            {
+                var sourceColName = _options.Column[i].Name;
+                var annotations = new DataViewSchema.Annotations.Builder();
+
+                ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = $"{sourceColName}_{calculationName}_{minWinName}_{maxWinName}".AsMemory();
+
+                annotations.Add<ReadOnlyMemory<char>>($"ColumnNames={sourceColName}_{calculationName}_{minWinName}_{maxWinName}", TextDataViewType.Instance, nameValueGetter);
+
+                schemaBuilder.AddColumn(_options.Column[i].Name, new VectorDataViewType(NumberDataViewType.Double, 1, (int)_options.Horizon), annotations.ToAnnotations());
+            }
+
+            return schemaBuilder.ToSchema();
+        }
+
+        public bool IsRowToRowMapper => false;
+
+        public IRowToRowMapper GetRowToRowMapper(DataViewSchema inputSchema) => throw new InvalidOperationException("Not a RowToRowMapper.");
 
         private static VersionInfo GetVersionInfo()
         {
@@ -400,9 +434,9 @@ namespace Microsoft.ML.Featurizers
                 loaderAssemblyName: typeof(RollingWindowTransformer).Assembly.FullName);
         }
 
-        private protected override void SaveModel(ModelSaveContext ctx)
+        public void Save(ModelSaveContext ctx)
         {
-            Host.CheckValue(ctx, nameof(ctx));
+            _host.CheckValue(ctx, nameof(ctx));
             ctx.CheckAtModel();
             ctx.SetVersionInfo(GetVersionInfo());
 
@@ -444,6 +478,25 @@ namespace Microsoft.ML.Featurizers
                 ctx.Writer.Write(data.Length);
                 ctx.Writer.Write(data);
             }
+        }
+
+        public IDataView Transform(IDataView input) => MakeDataTransform(input);
+
+        internal RollingWindowDataView MakeDataTransform(IDataView input)
+        {
+            _host.CheckValue(input, nameof(input));
+
+            return new RollingWindowDataView(_host, input, _options, this);
+        }
+
+        internal TransformerEstimatorSafeHandle[] CloneTransformers()
+        {
+            var transformers = new TransformerEstimatorSafeHandle[_columns.Length];
+            for (int i = 0; i < _columns.Length; i++)
+            {
+                transformers[i] = _columns[i].CloneTransformer();
+            }
+            return transformers;
         }
 
         public void Dispose()
@@ -490,27 +543,31 @@ namespace Microsoft.ML.Featurizers
             internal readonly string Type;
             internal readonly string Name;
 
-            private protected TransformerEstimatorSafeHandle TransformerHandler;
+            private protected TransformerEstimatorSafeHandle TransformerHandle;
             private static readonly Type[] _supportedTypes = new Type[] { typeof(double) };
 
             private protected string[] GrainColumns;
 
-            internal TypedColumn(string name, string source, string type, string[] grainColumns)
+            internal TypedColumn(string name, string source, string type, string[] grainColumns, TransformerEstimatorSafeHandle transformer)
             {
                 Source = source;
                 Type = type;
                 Name = name;
                 GrainColumns = grainColumns;
+
+                if (transformer != null)
+                    TransformerHandle = transformer;
             }
 
             internal abstract void CreateTransformerFromEstimator(IDataView input);
-            private protected abstract unsafe void CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize);
+            private protected abstract unsafe TransformerEstimatorSafeHandle CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize);
             private protected abstract bool CreateTransformerSaveDataHelper(out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle);
             private protected abstract bool GetStateHelper(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle);
             private protected abstract bool OnDataCompletedHelper(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle);
             public abstract void Dispose();
 
             public abstract Type ReturnType();
+            public abstract Type SourceType();
 
             internal byte[] CreateTransformerSaveData()
             {
@@ -532,7 +589,17 @@ namespace Microsoft.ML.Featurizers
                 fixed (byte* rawData = data)
                 {
                     IntPtr dataSize = new IntPtr(data.Count());
-                    CreateTransformerFromSavedDataHelper(rawData, dataSize);
+                    TransformerHandle = CreateTransformerFromSavedDataHelper(rawData, dataSize);
+                }
+            }
+
+            internal unsafe TransformerEstimatorSafeHandle CloneTransformer()
+            {
+                byte[] data = CreateTransformerSaveData();
+                fixed (byte* rawData = data)
+                {
+                    IntPtr dataSize = new IntPtr(data.Count());
+                    return CreateTransformerFromSavedDataHelper(rawData, dataSize);
                 }
             }
 
@@ -541,15 +608,15 @@ namespace Microsoft.ML.Featurizers
                 return _supportedTypes.Contains(type);
             }
 
-            internal static TypedColumn CreateTypedColumn(string name, string source, string type, RollingWindowEstimator.Options options)
+            internal static TypedColumn CreateTypedColumn(string name, string source, string type, RollingWindowEstimator.Options options, TransformerEstimatorSafeHandle transformer = null)
             {
                 if (type == typeof(double).ToString() && options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Mean)
                 {
-                    return new AnalyticalDoubleTypedColumn(name, source, options);
+                    return new AnalyticalDoubleTypedColumn(name, source, options, transformer);
                 }
                 else if (type == typeof(double).ToString() && (options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Min || options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Max))
                 {
-                    return new SimpleDoubleTypedColumn(name, source, options);
+                    return new SimpleDoubleTypedColumn(name, source, options, transformer);
                 }
 
                 throw new InvalidOperationException($"Column {source} has an unsupported type {type}.");
@@ -562,8 +629,8 @@ namespace Microsoft.ML.Featurizers
             private protected ValueGetter<ReadOnlyMemory<char>>[] GrainGetters;
             private protected readonly RollingWindowEstimator.Options Options;
 
-            internal TypedColumn(string name, string source, string type, RollingWindowEstimator.Options options) :
-                base(name, source, type, options.GrainColumns)
+            internal TypedColumn(string name, string source, string type, RollingWindowEstimator.Options options, TransformerEstimatorSafeHandle transformer) :
+                base(name, source, type, options.GrainColumns, transformer)
             {
                 Options = options;
 
@@ -671,7 +738,7 @@ namespace Microsoft.ML.Featurizers
                 }
             }
 
-            private void InitializeGrainGetters(IDataView input)
+            private bool InitializeGrainGetters(IDataView input)
             {
                 // Create getters for the grain columns. Cant use using for the cursor because it may need to be reset.
                 // Manually dispose of the cursor if its not null
@@ -683,16 +750,54 @@ namespace Microsoft.ML.Featurizers
                 for (int i = 0; i < GrainColumns.Length; i++)
                 {
                     // Inititialize the enumerator and move it to a valid position.
-                    GrainGetters[i] = Cursor.GetGetter<ReadOnlyMemory<char>>(input.Schema[GrainColumns[i]]);
+                    if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(sbyte))
+                        GrainGetters[i] = GetGrainGetter<sbyte>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(Int16))
+                        GrainGetters[i] = GetGrainGetter<Int16>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(Int32))
+                        GrainGetters[i] = GetGrainGetter<Int32>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(Int64))
+                        GrainGetters[i] = GetGrainGetter<Int64>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(byte))
+                        GrainGetters[i] = GetGrainGetter<byte>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(UInt16))
+                        GrainGetters[i] = GetGrainGetter<UInt16>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(UInt32))
+                        GrainGetters[i] = GetGrainGetter<UInt32>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(UInt64))
+                        GrainGetters[i] = GetGrainGetter<UInt64>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(float))
+                        GrainGetters[i] = GetGrainGetter<float>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(double))
+                        GrainGetters[i] = GetGrainGetter<double>(GrainColumns[i]);
+                    else if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(bool))
+                        GrainGetters[i] = GetGrainGetter<bool>(GrainColumns[i]);
+                    if (Cursor.Schema[GrainColumns[i]].Type.RawType == typeof(ReadOnlyMemory<char>))
+                        GrainGetters[i] = Cursor.GetGetter<ReadOnlyMemory<char>>(Cursor.Schema[GrainColumns[i]]);
                 }
 
-                // Move cursor to valid spot.
-                Cursor.MoveNext();
+                return Cursor.MoveNext();
+            }
+
+            private ValueGetter<ReadOnlyMemory<char>> GetGrainGetter<T>(string grainColumn)
+            {
+                var getter = Cursor.GetGetter<T>(Cursor.Schema[grainColumn]);
+                T value = default;
+                return (ref ReadOnlyMemory<char> dst) =>
+                {
+                    getter(ref value);
+                    dst = value.ToString().AsMemory();
+                };
             }
 
             public override Type ReturnType()
             {
                 return typeof(TOutputType);
+            }
+
+            public override Type SourceType()
+            {
+                return typeof(TSourceType);
             }
         }
 
@@ -704,8 +809,8 @@ namespace Microsoft.ML.Featurizers
 
         internal sealed class AnalyticalDoubleTypedColumn : TypedColumn<double, VBuffer<double>>
         {
-            internal AnalyticalDoubleTypedColumn(string name, string source, RollingWindowEstimator.Options options) :
-                base(name, source, typeof(double).ToString(), options)
+            internal AnalyticalDoubleTypedColumn(string name, string source, RollingWindowEstimator.Options options, TransformerEstimatorSafeHandle transformer) :
+                base(name, source, typeof(double).ToString(), options, transformer)
             {
             }
 
@@ -722,25 +827,25 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
             internal override void CreateTransformerFromEstimator(IDataView input)
             {
-                TransformerHandler = CreateTransformerFromEstimatorBase(input);
+                TransformerHandle = CreateTransformerFromEstimatorBase(input);
             }
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_CreateTransformerFromSavedData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static unsafe extern bool CreateTransformerFromSavedDataNative(byte* rawData, IntPtr bufferSize, out IntPtr transformer, out IntPtr errorHandle);
-            private protected override unsafe void CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize)
+            private protected override unsafe TransformerEstimatorSafeHandle CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize)
             {
                 var result = CreateTransformerFromSavedDataNative(rawData, dataSize, out IntPtr transformer, out IntPtr errorHandle);
                 if (!result)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                TransformerHandler = new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
+                return new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
             }
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
             internal unsafe override VBuffer<double> Transform(IntPtr grainsArray, IntPtr grainsArraySize, double input)
             {
-                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
+                var success = TransformDataNative(TransformerHandle, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
                 if (!success)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
@@ -791,7 +896,7 @@ namespace Microsoft.ML.Featurizers
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_CreateTransformerSaveData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static extern bool CreateTransformerSaveDataNative(TransformerEstimatorSafeHandle transformer, out IntPtr buffer, out IntPtr bufferSize, out IntPtr error);
             private protected override bool CreateTransformerSaveDataHelper(out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle) =>
-                CreateTransformerSaveDataNative(TransformerHandler, out buffer, out bufferSize, out errorHandle);
+                CreateTransformerSaveDataNative(TransformerHandle, out buffer, out bufferSize, out errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_GetState", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static extern bool GetStateNative(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle);
@@ -805,8 +910,8 @@ namespace Microsoft.ML.Featurizers
 
             public override void Dispose()
             {
-                if (!TransformerHandler.IsClosed)
-                    TransformerHandler.Dispose();
+                if (!TransformerHandle.IsClosed)
+                    TransformerHandle.Dispose();
             }
         }
 
@@ -818,8 +923,8 @@ namespace Microsoft.ML.Featurizers
 
         internal sealed class SimpleDoubleTypedColumn : TypedColumn<double, VBuffer<double>>
         {
-            internal SimpleDoubleTypedColumn(string name, string source, RollingWindowEstimator.Options options) :
-                base(name, source, typeof(double).ToString(), options)
+            internal SimpleDoubleTypedColumn(string name, string source, RollingWindowEstimator.Options options, TransformerEstimatorSafeHandle transformer) :
+                base(name, source, typeof(double).ToString(), options, transformer)
             {
             }
 
@@ -836,25 +941,25 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
             internal override void CreateTransformerFromEstimator(IDataView input)
             {
-                TransformerHandler = CreateTransformerFromEstimatorBase(input);
+                TransformerHandle = CreateTransformerFromEstimatorBase(input);
             }
 
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateTransformerFromSavedData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static unsafe extern bool CreateTransformerFromSavedDataNative(byte* rawData, IntPtr bufferSize, out IntPtr transformer, out IntPtr errorHandle);
-            private protected override unsafe void CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize)
+            private protected override unsafe TransformerEstimatorSafeHandle CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize)
             {
                 var result = CreateTransformerFromSavedDataNative(rawData, dataSize, out IntPtr transformer, out IntPtr errorHandle);
                 if (!result)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                TransformerHandler = new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
+                return new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
             }
 
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
             internal unsafe override VBuffer<double> Transform(IntPtr grainsArray, IntPtr grainsArraySize, double input)
             {
-                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
+                var success = TransformDataNative(TransformerHandle, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
                 if (!success)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
@@ -906,7 +1011,7 @@ namespace Microsoft.ML.Featurizers
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateTransformerSaveData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static extern bool CreateTransformerSaveDataNative(TransformerEstimatorSafeHandle transformer, out IntPtr buffer, out IntPtr bufferSize, out IntPtr error);
             private protected override bool CreateTransformerSaveDataHelper(out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle) =>
-                CreateTransformerSaveDataNative(TransformerHandler, out buffer, out bufferSize, out errorHandle);
+                CreateTransformerSaveDataNative(TransformerHandle, out buffer, out bufferSize, out errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_GetState", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static extern bool GetStateNative(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle);
@@ -920,8 +1025,8 @@ namespace Microsoft.ML.Featurizers
 
             public override void Dispose()
             {
-                if (!TransformerHandler.IsClosed)
-                    TransformerHandler.Dispose();
+                if (!TransformerHandle.IsClosed)
+                    TransformerHandle.Dispose();
             }
         }
 
@@ -929,132 +1034,67 @@ namespace Microsoft.ML.Featurizers
 
         #endregion
 
-        private sealed class Mapper : MapperBase, ISaveAsOnnx
+        #region IDataView
+
+        internal sealed class RollingWindowDataView : ITransformCanSaveOnnx
         {
-            private static readonly FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate> _makeGetterMethodInfo
-                = FuncInstanceMethodInfo2<Mapper, DataViewRow, int, Delegate>.Create(target => target.MakeGetter<int, int>);
+            private RollingWindowTransformer _parent;
+            private readonly IDataView _source;
+            private readonly IHostEnvironment _host;
+            private readonly DataViewSchema _schema;
+            private readonly RollingWindowEstimator.Options _options;
 
-            #region Class members
-
-            private readonly RollingWindowTransformer _parent;
-
-            #endregion
-
-            public Mapper(RollingWindowTransformer parent, DataViewSchema inputSchema) :
-                base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
+            internal RollingWindowDataView(IHostEnvironment env, IDataView input, RollingWindowEstimator.Options options, RollingWindowTransformer parent)
             {
+                _host = env;
+                _source = input;
+
+                _options = options;
                 _parent = parent;
+
+                _schema = _parent.GetOutputSchema(input.Schema);
             }
 
-            protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()
+            public bool CanShuffle => false;
+
+            public DataViewSchema Schema => _schema;
+
+            public IDataView Source => _source;
+
+            public DataViewRowCursor GetRowCursor(IEnumerable<DataViewSchema.Column> columnsNeeded, Random rand = null)
             {
-                // To add future support for when this will do multiple window sizes at once, output will be a 2d vector so nothing will need to change when that is implemented.
+                _host.AssertValueOrNull(rand);
 
-                // Create annotations
-                // We create 4 annotations, these are used by the PivotFeaturizer.
-                // We create annotations for the minWindowSize, maxWindowSize, this featurizerName, and which calculation was performed.
-                // Since we can't get the value of the annotation from the schema shape, the current workaround is naming annotation with the value as well.
-                // This workaround will need to be removed when the limitation is resolved.
-                var outputColumns = new DataViewSchema.DetachedColumn[_parent._options.Column.Length];
-
-                // These are used in generating the column name, but don't need to be recreated in the loop.
-                var calculationName = Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation);
-                var minWinName = $"MinWin{_parent._options.MinWindowSize}";
-                var maxWinName = $"MaxWin{_parent._options.MaxWindowSize}";
-
-                for (int i = 0; i < _parent._options.Column.Length; i++)
-                {
-                    var sourceColName = _parent._options.Column[i].Name;
-                    var annotations = new DataViewSchema.Annotations.Builder();
-
-                    ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = $"{sourceColName}_{calculationName}_{minWinName}_{maxWinName}".AsMemory();
-
-                    annotations.Add<ReadOnlyMemory<char>>($"ColumnNames={sourceColName}_{calculationName}_{minWinName}_{maxWinName}", TextDataViewType.Instance, nameValueGetter);
-
-                    outputColumns[i] = new DataViewSchema.DetachedColumn(_parent._options.Column[i].Name, new VectorDataViewType(NumberDataViewType.Double, 1, (int)_parent._options.Horizon), annotations.ToAnnotations());
-                }
-
-                return outputColumns;
+                return new Cursor(_host, _source, _parent.CloneTransformers(), _options, _schema);
             }
 
-            private Delegate MakeGetter<TSourceType, TOutputType>(DataViewRow input, int iinfo)
+            // Can't use parallel cursors so this defaults to calling non-parallel version
+            public DataViewRowCursor[] GetRowCursorSet(IEnumerable<DataViewSchema.Column> columnsNeeded, int n, Random rand = null) =>
+                 new DataViewRowCursor[] { GetRowCursor(columnsNeeded, rand) };
+
+            // We aren't changing the row count, so just get the _source row count
+            public long? GetRowCount() => _source.GetRowCount();
+
+            public void Save(ModelSaveContext ctx)
             {
-                var inputColumn = input.Schema[_parent._columns[iinfo].Source];
-                var srcGetterScalar = input.GetGetter<TSourceType>(inputColumn);
-
-                // Initialize grain getters.
-                int grainColumnCount = _parent._options.GrainColumns.Length;
-                ValueGetter<ReadOnlyMemory<char>>[] grainGetters = new ValueGetter<ReadOnlyMemory<char>>[grainColumnCount];
-                for (int i = 0; i < grainGetters.Length; i++)
-                {
-                    grainGetters[i] = input.GetGetter<ReadOnlyMemory<char>>(input.Schema[_parent._options.GrainColumns[i]]);
-                }
-
-                // Declaring these outside so they are only done once
-                GCHandle[] grainHandles = new GCHandle[grainColumnCount];
-                IntPtr[] grainArray = new IntPtr[grainHandles.Length];
-                GCHandle arrayHandle = default;
-
-                ValueGetter<TOutputType> result = (ref TOutputType dst) =>
-                {
-                    TSourceType value = default;
-
-                    // Build the string array
-                    try
-                    {
-                        CreateGrainStringArrays(grainGetters, ref grainHandles, ref arrayHandle, ref grainArray);
-
-                        srcGetterScalar(ref value);
-
-                        dst = ((TypedColumn<TSourceType, TOutputType>)_parent._columns[iinfo]).Transform(arrayHandle.AddrOfPinnedObject(), new IntPtr(grainArray.Length), value);
-                    }
-                    finally
-                    {
-                        FreeGrainStringArrays(ref grainHandles, ref arrayHandle);
-                    }
-                };
-
-                return result;
+                _parent.Save(ctx);
             }
-
-            protected override Delegate MakeGetter(DataViewRow input, int iinfo, Func<int, bool> activeOutput, out Action disposer)
-            {
-                disposer = null;
-                Type inputType = input.Schema[_parent._columns[iinfo].Source].Type.RawType;
-                Type outputType = _parent._columns[iinfo].ReturnType();
-
-                return Utils.MarshalInvoke(_makeGetterMethodInfo, this, inputType, outputType, input, iinfo);
-            }
-
-            private protected override Func<int, bool> GetDependenciesCore(Func<int, bool> activeOutput)
-            {
-                var active = new bool[InputSchema.Count];
-                for (int i = 0; i < InputSchema.Count; i++)
-                {
-                    if (_parent._options.GrainColumns.Any(x => x == InputSchema[i].Name) || _parent._options.Column.Any(x => x.Source == InputSchema[i].Name))
-                    {
-                        active[i] = true;
-                    }
-                }
-
-                return col => active[col];
-            }
-
-            private protected override void SaveModel(ModelSaveContext ctx) => _parent.SaveModel(ctx);
 
             public void SaveAsOnnx(OnnxContext ctx)
             {
-                Host.CheckValue(ctx, nameof(ctx));
+                _host.CheckValue(ctx, nameof(ctx));
                 Contracts.Assert(CanSaveOnnx(ctx));
 
                 string opType = "RollingWindowTransformer";
 
+                // Convert grain columns to strings
+                CreateOnnxStringConversion(ctx, _parent._options.GrainColumns, out string[] grainStringColumns);
+
                 // Combine all the grains into one tensor
-                CreateOnnxColumnConcatenation(ctx, _parent._options.GrainColumns, "grains", out string grainsTensorName);
+                CreateOnnxColumnConcatenation(ctx, grainStringColumns, "grains", out string grainsTensorName);
 
                 foreach (var column in _parent._columns)
                 {
-
                     // srcVariable needs to have the "batch" removed
                     CreateSqueezeNode(ctx, ctx.GetVariableName(column.Source), NumberDataViewType.Double);
 
@@ -1071,6 +1111,35 @@ namespace Microsoft.ML.Featurizers
 
                     var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName, srcVariableName },
                             outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                }
+            }
+
+            private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, out string[] outputColumns)
+            {
+                // Create string "state" for the string featurizer for float and double type
+                var state = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 };
+                long[] dimensions = new long[] { state.Length };
+
+                string opType = "StringTransformer";
+                outputColumns = new string[inputColumns.Length];
+
+                for (int i = 0; i < inputColumns.Length; i++)
+                {
+                    var baseType = _schema[inputColumns[i]].Type.RawType;
+                    var srcVariableName = ctx.GetVariableName(inputColumns[i]);
+
+                    // If we are already a string no need to convert.
+                    if (baseType == typeof(ReadOnlyMemory<char>))
+                    {
+                        outputColumns[i] = srcVariableName;
+                        continue;
+                    }
+
+                    var initializer = ctx.AddInitializer(state, dimensions, "ShortGrainStateInitializer");
+                    var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, srcVariableName + "-stringoutput");
+                    outputColumns[i] = dstVariableName;
+
+                    ctx.CreateNode(opType, new[] { initializer, srcVariableName }, new[] { dstVariableName }, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
                 }
             }
 
@@ -1099,7 +1168,191 @@ namespace Microsoft.ML.Featurizers
             }
 
             public bool CanSaveOnnx(OnnxContext ctx) => true;
+
+            #region Cursor
+
+            private sealed class Cursor : DataViewRowCursor
+            {
+                private static readonly FuncInstanceMethodInfo2<Cursor, DataViewRow, int, Delegate> _makeGetterMethodInfo
+                    = FuncInstanceMethodInfo2<Cursor, DataViewRow, int, Delegate>.Create(target => target.MakeGetter<int, int>);
+
+                private readonly IChannelProvider _ch;
+                private IDataView _dataView;
+
+                private DataViewRowCursor _sourceCursor;
+                private long _position;
+                private bool _sourceIsGood;
+                private readonly DataViewSchema _schema;
+                private TypedColumn[] _columns;
+                private readonly RollingWindowEstimator.Options _options;
+                private ValueGetter<ReadOnlyMemory<char>>[] _grainGetters;
+
+                public Cursor(IChannelProvider provider, IDataView input, TransformerEstimatorSafeHandle[] transformers, RollingWindowEstimator.Options options, DataViewSchema schema)
+                {
+                    _ch = provider;
+                    _ch.CheckValue(input, nameof(input));
+
+                    _dataView = input;
+                    _position = -1;
+                    _schema = schema;
+                    _options = options;
+                    _grainGetters = new ValueGetter<ReadOnlyMemory<char>>[_options.GrainColumns.Length];
+
+                    _sourceIsGood = true;
+
+                    _sourceCursor = _dataView.GetRowCursorForAllColumns();
+
+                    InitializeGrainGetters(_options.GrainColumns);
+
+                    _columns = new TypedColumn[transformers.Length];
+                    for (int i = 0; i < transformers.Length; i++)
+                    {
+                        _columns[i] = TypedColumn.CreateTypedColumn(options.Column[i].Name, options.Column[i].Source, input.Schema[options.Column[i].Source].Type.RawType.ToString(), options, transformers[i]);
+                    }
+                }
+
+                public sealed override ValueGetter<DataViewRowId> GetIdGetter()
+                {
+                    return
+                           (ref DataViewRowId val) =>
+                           {
+                               _ch.Check(_sourceIsGood, RowCursorUtils.FetchValueStateError);
+                               val = new DataViewRowId((ulong)Position, 0);
+                           };
+                }
+
+                public sealed override DataViewSchema Schema => _schema;
+
+                public override bool IsColumnActive(DataViewSchema.Column column) => true;
+
+                protected override void Dispose(bool disposing)
+                {
+                    foreach (var column in _columns)
+                    {
+                        column.Dispose();
+                    }
+                    _sourceCursor.Dispose();
+                }
+
+                /// <summary>
+                /// Returns a value getter delegate to fetch the value of column with the given columnIndex, from the row.
+                /// This throws if the column is not active in this row, or if the type.
+                /// Since all we are doing is dropping rows, we can just use the source getter.
+                /// <typeparamref name="TValue"/> differs from this column's type.
+                /// </summary>
+                /// <typeparam name="TValue"> is the column's content type.</typeparam>
+                /// <param name="column"> is the output column whose getter should be returned.</param>
+                public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)
+                {
+                    _ch.Check(IsColumnActive(column));
+
+                    if (_columns.Any(x => x.Name == column.Name && x.ReturnType().ToString() == column.Type.RawType.ToString()))
+                    {
+                        var index = Array.FindIndex(_columns, x => x.Name == column.Name);
+                        Type inputType = _columns[index].SourceType();
+                        Type outputType = _columns[index].ReturnType();
+
+                        return (ValueGetter<TValue>)Utils.MarshalInvoke(_makeGetterMethodInfo, this, inputType, outputType, _sourceCursor, index);
+                        //return (ValueGetter<TValue>)_columns.Where(x => x.Name == column.Name).First().GetGetter();
+                    }
+
+                    return _sourceCursor.GetGetter<TValue>(column);
+                }
+
+                public override bool MoveNext()
+                {
+                    _position++;
+                    _sourceIsGood = _sourceCursor.MoveNext();
+                    return _sourceIsGood;
+                }
+
+                public sealed override long Position => _position;
+
+                public sealed override long Batch => _sourceCursor.Batch;
+
+                private void InitializeGrainGetters(string[] grainColumns)
+                {
+                    // Create getters for the source grain columns.
+
+                    for (int i = 0; i < _grainGetters.Length; i++)
+                    {
+                        if (Schema[grainColumns[i]].Type.RawType == typeof(sbyte))
+                            _grainGetters[i] = GetGrainGetter<sbyte>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(Int16))
+                            _grainGetters[i] = GetGrainGetter<Int16>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(Int32))
+                            _grainGetters[i] = GetGrainGetter<Int32>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(Int64))
+                            _grainGetters[i] = GetGrainGetter<Int64>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(byte))
+                            _grainGetters[i] = GetGrainGetter<byte>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(UInt16))
+                            _grainGetters[i] = GetGrainGetter<UInt16>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(UInt32))
+                            _grainGetters[i] = GetGrainGetter<UInt32>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(UInt64))
+                            _grainGetters[i] = GetGrainGetter<UInt64>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(float))
+                            _grainGetters[i] = GetGrainGetter<float>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(double))
+                            _grainGetters[i] = GetGrainGetter<double>(grainColumns[i]);
+                        else if (Schema[grainColumns[i]].Type.RawType == typeof(bool))
+                            _grainGetters[i] = GetGrainGetter<bool>(grainColumns[i]);
+                        if (Schema[grainColumns[i]].Type.RawType == typeof(ReadOnlyMemory<char>))
+                            _grainGetters[i] = _sourceCursor.GetGetter<ReadOnlyMemory<char>>(Schema[grainColumns[i]]);
+                    }
+                }
+
+                private ValueGetter<ReadOnlyMemory<char>> GetGrainGetter<T>(string grainColumn)
+                {
+                    var getter = _sourceCursor.GetGetter<T>(Schema[grainColumn]);
+                    T value = default;
+                    return (ref ReadOnlyMemory<char> dst) =>
+                    {
+                        getter(ref value);
+                        dst = value.ToString().AsMemory();
+                    };
+                }
+
+                private Delegate MakeGetter<TSourceType, TOutputType>(DataViewRow input, int iinfo)
+                {
+                    var inputColumn = input.Schema[_columns[iinfo].Source];
+                    var srcGetterScalar = input.GetGetter<TSourceType>(inputColumn);
+
+                    // Declaring these outside so they are only done once
+                    GCHandle[] grainHandles = new GCHandle[_grainGetters.Length];
+                    IntPtr[] grainArray = new IntPtr[grainHandles.Length];
+                    GCHandle arrayHandle = default;
+
+                    ValueGetter<TOutputType> result = (ref TOutputType dst) =>
+                    {
+                        TSourceType value = default;
+
+                        // Build the string array
+                        try
+                        {
+                            CreateGrainStringArrays(_grainGetters, ref grainHandles, ref arrayHandle, ref grainArray);
+
+                            srcGetterScalar(ref value);
+
+                            dst = ((TypedColumn<TSourceType, TOutputType>)_columns[iinfo]).Transform(arrayHandle.AddrOfPinnedObject(), new IntPtr(grainArray.Length), value);
+                        }
+                        finally
+                        {
+                            FreeGrainStringArrays(ref grainHandles, ref arrayHandle);
+                        }
+                    };
+
+                    return result;
+                }
+            }
+
+            #endregion Cursor
+
         }
+
+        #endregion IDataView
+
     }
 
     internal static class RollingWindowEntrypoint
