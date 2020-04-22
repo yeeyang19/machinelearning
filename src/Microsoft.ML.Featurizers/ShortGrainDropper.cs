@@ -486,7 +486,6 @@ namespace Microsoft.ML.Featurizers
                 Contracts.Assert(CanSaveOnnx(ctx));
 
                 string opType = "ShortGrainDropperTransformer";
-                string boolFilterColumnName = "ShortGrainDropper_BoolTemp";
 
                 // Convert grain columns to strings
                 CreateOnnxStringConversion(ctx, _grainColumns, out string[] grainStringColumns);
@@ -494,18 +493,24 @@ namespace Microsoft.ML.Featurizers
                 // Combine all the grains into one tensor
                 CreateOnnxColumnConcatenation(ctx, grainStringColumns, "grains", out string grainsTensorName);
 
-                var dstVariableName = ctx.AddIntermediateVariable(BooleanDataViewType.Instance, boolFilterColumnName);
+                var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, grainsTensorName);
+
+                var variadicSources = new List<string>();
+                var variadicDest = new List<string>();
+
+                foreach (var column in Schema)
+                {
+                    variadicSources.Add(ctx.GetVariableName(column.Name));
+                    variadicDest.Add(ctx.AddIntermediateVariable(column.Type, column.Name));
+                }
 
                 var state = _parent.CreateTransformerSaveData();
                 long[] dimensions = new long[] { state.Length };
                 var outputList = new List<string>() { dstVariableName };
 
-                var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName },
-                        outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+                var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName }.Concat(variadicSources),
+                        outputList.Concat(variadicDest), ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
 
-                InvertBoolArray(ctx, boolFilterColumnName);
-
-                DropRowsFromAllColumns(ctx, boolFilterColumnName);
             }
 
             private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, out string[] outputColumns)
