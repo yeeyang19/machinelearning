@@ -216,6 +216,9 @@ namespace Microsoft.ML.Featurizers
                 {
                     columns[name] = new SchemaShape.Column(name, VectorKind.Scalar, NumberDataViewType.Double, false);
                 }
+
+                // Remove the pivot column after this transformer is done.
+                columns.Remove(col);
             }
 
             return new SchemaShape(columns.Values);
@@ -303,7 +306,7 @@ namespace Microsoft.ML.Featurizers
             _newColumns = new List<string>();
 
             var schemaBuilder = new DataViewSchema.Builder();
-            schemaBuilder.AddColumns(inputSchema.AsEnumerable());
+            schemaBuilder.AddColumns(inputSchema.Where(x => !_options.ColumnsToPivot.Contains(x.Name)).AsEnumerable());
 
             // Will always add a Horizon columns
             schemaBuilder.AddColumn(_options.HorizonColumnName, NumberDataViewType.UInt32);
@@ -324,6 +327,8 @@ namespace Microsoft.ML.Featurizers
                     schemaBuilder.AddColumn(name, NumberDataViewType.Double);
                     _newColumns.Add(name);
                 }
+
+                // Remove the pivot column after this transformer is done.
             }
 
             return schemaBuilder.ToSchema();

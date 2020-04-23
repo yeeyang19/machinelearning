@@ -681,6 +681,9 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
+            // Make sure the input pivot column was dropped.
+            Assert.Throws<ArgumentOutOfRangeException>(() => schema["ColA_Vec"]);
+
             var addedColumn = schema["ColA_Vec_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type;
 
@@ -747,12 +750,14 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            //var index = 0;
+            // Make sure the input pivot column was dropped.
+            Assert.Throws<ArgumentOutOfRangeException>(() => schema["ColA_Vec"]);
+
             var debugView = output.Preview();
             var colA = debugView.ColumnView[0].Values;
-            var horizonCol = debugView.ColumnView[2].Values;
-            var lagCol = debugView.ColumnView[3].Values;
-            var leadCol = debugView.ColumnView[4].Values;
+            var horizonCol = debugView.ColumnView[1].Values;
+            var lagCol = debugView.ColumnView[2].Values;
+            var leadCol = debugView.ColumnView[3].Values;
 
             // Correct output for:
             // ColA,    ColA_Lag_1, ColA_Lead_1,    Horizon
@@ -831,11 +836,13 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            //var index = 0;
+            // Make sure the input pivot column was dropped.
+            Assert.Throws<ArgumentOutOfRangeException>(() => schema["ColA_Vec"]);
+
             var debugView = output.Preview();
             var colA = debugView.ColumnView[0].Values;
-            var horizonCol = debugView.ColumnView[2].Values;
-            var pivotCol = debugView.ColumnView[3].Values;
+            var horizonCol = debugView.ColumnView[1].Values;
+            var pivotCol = debugView.ColumnView[2].Values;
 
             // Correct output for:
             // ColA,    ColA_RW_Mean_MinWin1_MaxWin1,  Horizon
@@ -916,13 +923,16 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            //var index = 0;
+            // Make sure the input pivot column was dropped.
+            Assert.Throws<ArgumentOutOfRangeException>(() => schema["ColA_RW"]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => schema["ColA_LL"]);
+
             var debugView = output.Preview();
             var colA = debugView.ColumnView[0].Values;
-            var horizonCol = debugView.ColumnView[3].Values;
-            var rollingWindowCol = debugView.ColumnView[4].Values;
-            var lagCol = debugView.ColumnView[5].Values;
-            var leadCol = debugView.ColumnView[6].Values;
+            var horizonCol = debugView.ColumnView[1].Values;
+            var rollingWindowCol = debugView.ColumnView[2].Values;
+            var lagCol = debugView.ColumnView[3].Values;
+            var leadCol = debugView.ColumnView[4].Values;
 
             // Correct output for:
             // ColA,    ColA_RW_Mean_MinWin1_MaxWin1,  ColA_Lag_1, ColA_Lead_1,    Horizon
