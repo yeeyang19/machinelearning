@@ -367,9 +367,9 @@ namespace Microsoft.ML.Model.OnnxConverter
                     dimsLocal.Add(1);
                     dimsParamLocal = new List<bool>() { false, true }; //false for batch size, true for dims.
                 }
-                else if (valueCount == 1)
+                else if (type as VectorDataViewType == null)
                     dimsLocal.Add(1);
-                else if (valueCount > 1)
+                else
                 {
                     var vec = (VectorDataViewType)type;
                     for (int i = 0; i < vec.Dimensions.Length; i++)

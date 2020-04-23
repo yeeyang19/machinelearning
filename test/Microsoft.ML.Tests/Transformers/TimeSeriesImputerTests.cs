@@ -52,30 +52,34 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [NotCentOS7Fact]
-        public void NotImputeOneColumn()
+        public void NotImputeColumns()
         {
             MLContext mlContext = new MLContext(1);
             var dataList = new[] { 
-                new TimeSeriesOneGrainInput() { date = 25, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5 }, 
-                new TimeSeriesOneGrainInput() { date = 26, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5 }, 
-                new TimeSeriesOneGrainInput() { date = 28, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5 } 
+                new { date = 25L, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5, dataD = 2d, dataE = new DateTime(), dataF = "One", dataG = true }, 
+                new { date = 26L, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5, dataD = 2d, dataE = new DateTime(), dataF = "One", dataG = true  }, 
+                new { date = 28L, grainA = "A", dataA = 1, dataB = 2.0f, dataC = 5, dataD = 2d, dataE = new DateTime(), dataF = "One", dataG = true  } 
             };
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, fit, and transform it.
-            var pipeline = mlContext.Transforms.ReplaceMissingTimeSeriesValues("date", new string[] { "grainA" }, new string[] { "dataB"});
+            var pipeline = mlContext.Transforms.ReplaceMissingTimeSeriesValues("date", new string[] { "grainA" }, new string[] { "dataB", "dataD", "dataE", "dataF", "dataG" });
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
 
             // We always output the same column as the input, plus adding a column saying whether the row was imputed or not.
-            Assert.Equal(6, schema.Count);
+            Assert.Equal(10, schema.Count);
             Assert.Equal("date", schema[0].Name);
             Assert.Equal("grainA", schema[1].Name);
             Assert.Equal("dataA", schema[2].Name);
             Assert.Equal("dataB", schema[3].Name);
             Assert.Equal("dataC", schema[4].Name);
-            Assert.Equal("IsRowImputed", schema[5].Name);
+            Assert.Equal("dataD", schema[5].Name);
+            Assert.Equal("dataE", schema[6].Name);
+            Assert.Equal("dataF", schema[7].Name);
+            Assert.Equal("dataG", schema[8].Name);
+            Assert.Equal("IsRowImputed", schema[9].Name);
 
             // We are imputing 1 row, so total rows should be 4.
             var preview = output.Preview();
@@ -84,8 +88,14 @@ namespace Microsoft.ML.Tests.Transformers
             // Row that was imputed should have date of 27
             Assert.Equal(27L, preview.ColumnView[0].Values[2]);
 
-            // Since we are not imputing data on one column and a row is getting imputed, its value should be default(T)
-            Assert.Equal(default(float), preview.ColumnView[3].Values[2]);
+            // Since we are not imputing data on one column and a row is getting imputed, its value should be default(T).
+            // Float and doubles return NaN values instead of default(T), and DateTime values return the unix epoc.
+            DateTime unixEpoch = new DateTime(1970, 1, 1);
+            Assert.Equal(float.NaN, preview.ColumnView[3].Values[2]);
+            Assert.Equal(double.NaN, preview.ColumnView[5].Values[2]);
+            Assert.Equal(unixEpoch, preview.ColumnView[6].Values[2]);
+            Assert.Equal("", preview.ColumnView[7].Values[2].ToString());
+            Assert.Equal(false, preview.ColumnView[8].Values[2]);
 
             TestEstimatorCore(pipeline, data);
             Done();
@@ -438,6 +448,61 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.Equal(2.0f, prev.ColumnView[2].Values[4]);
             Assert.Equal(2.0f, prev.ColumnView[2].Values[5]);
             Assert.Equal(2.0f, prev.ColumnView[2].Values[6]);
+
+            // Make sure IsRowImputed is true for row 2, 4,6 , false for the rest
+            Assert.Equal(false, prev.ColumnView[3].Values[0]);
+            Assert.Equal(false, prev.ColumnView[3].Values[1]);
+            Assert.Equal(true, prev.ColumnView[3].Values[2]);
+            Assert.Equal(false, prev.ColumnView[3].Values[3]);
+            Assert.Equal(true, prev.ColumnView[3].Values[4]);
+            Assert.Equal(false, prev.ColumnView[3].Values[5]);
+            Assert.Equal(true, prev.ColumnView[3].Values[6]);
+            Assert.Equal(false, prev.ColumnView[3].Values[7]);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
+        public void UnsupportedTypeIgnoreErrors()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] { new  { date = 0L, grainA = "A", dataA = "a" },
+                new { date = 1L, grainA = "A", dataA = "d" },
+                new  { date = 3L, grainA = "A", dataA = "c" },
+                new  { date = 5L, grainA = "A", dataA = "s" },
+                new  { date = 7L, grainA = "A", dataA = "w" }};
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, fit, and transform it.
+            var pipeline = mlContext.Transforms.ReplaceMissingTimeSeriesValues("date", new string[] { "grainA" }, TimeSeriesImputerEstimator.ImputationStrategy.Median);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var prev = output.Preview();
+
+            // Should have 3 original columns + 1 more for IsRowImputed
+            Assert.Equal(4, output.Schema.Count);
+
+            // Imputing rows with dates 2,4,6, so should have length of 8
+            Assert.Equal(8, prev.RowView.Length);
+
+            // Check that imputed rows have the correct dates
+            Assert.Equal(2L, prev.ColumnView[0].Values[2]);
+            Assert.Equal(4L, prev.ColumnView[0].Values[4]);
+            Assert.Equal(6L, prev.ColumnView[0].Values[6]);
+
+            // Make sure grain was propagated correctly
+            Assert.Equal("A", prev.ColumnView[1].Values[2].ToString());
+            Assert.Equal("A", prev.ColumnView[1].Values[4].ToString());
+            Assert.Equal("A", prev.ColumnView[1].Values[6].ToString());
+
+            // Make sure backfill is working as expected. All NA's should be replaced, and imputed rows should have correct values too
+            Assert.Equal("a", prev.ColumnView[2].Values[0].ToString());
+            Assert.Equal("d", prev.ColumnView[2].Values[1].ToString());
+            Assert.Equal("", prev.ColumnView[2].Values[2].ToString());
+            Assert.Equal("", prev.ColumnView[2].Values[4].ToString());
+            Assert.Equal("s", prev.ColumnView[2].Values[5].ToString());
+            Assert.Equal("", prev.ColumnView[2].Values[6].ToString());
 
             // Make sure IsRowImputed is true for row 2, 4,6 , false for the rest
             Assert.Equal(false, prev.ColumnView[3].Values[0]);

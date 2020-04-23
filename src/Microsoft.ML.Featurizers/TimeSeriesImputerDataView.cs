@@ -203,7 +203,7 @@ namespace Microsoft.ML.Transforms
                         // If the row was imputed we want to just return the default value for the type.
                         if (BoolTypedColumn.GetBoolFromNativeBinaryArchiveData(imputedData.Data, 0))
                         {
-                            dst = default;
+                            dst = GetDefaultValue();
                         }
                         else
                         {
@@ -270,6 +270,8 @@ namespace Microsoft.ML.Transforms
                 return typeof(T).GetNativeTypeIdFromType();
             }
 
+            private protected abstract T GetDefaultValue();
+
             internal unsafe abstract T GetDataFromNativeBinaryArchiveData(byte* data, int offset);
         }
 
@@ -299,6 +301,11 @@ namespace Microsoft.ML.Transforms
                     return Marshal.SizeOf(default(T)) + sizeof(bool);
                 else
                     return Marshal.SizeOf(default(T));
+            }
+
+            private protected override T GetDefaultValue()
+            {
+                return default;
             }
         }
 
@@ -483,6 +490,11 @@ namespace Microsoft.ML.Transforms
                 Marshal.Copy((IntPtr)(data + offset), bytes, 0, sizeof(float));
                 return BitConverter.ToSingle(bytes, 0);
             }
+
+            private protected override float GetDefaultValue()
+            {
+                return float.NaN;
+            }
         }
 
         private class DoubleTypedColumn : NumericTypedColumn<double>
@@ -497,6 +509,11 @@ namespace Microsoft.ML.Transforms
                 var bytes = new byte[sizeof(double)];
                 Marshal.Copy((IntPtr)(data + offset), bytes, 0, sizeof(double));
                 return BitConverter.ToDouble(bytes, 0);
+            }
+
+            private protected override double GetDefaultValue()
+            {
+                return double.NaN;
             }
         }
 
@@ -576,6 +593,11 @@ namespace Microsoft.ML.Transforms
                 }
             }
 
+            private protected override ReadOnlyMemory<char> GetDefaultValue()
+            {
+                return new ReadOnlyMemory<char>();
+            }
+
             internal override unsafe int GetDataSizeInBytes(byte* data, int currentOffset)
             {
                 var size = *(uint*)(data + currentOffset);
@@ -635,6 +657,11 @@ namespace Microsoft.ML.Transforms
                     return 1 + sizeof(long); // + 1 for the byte bool flag
 
                 return sizeof(long);
+            }
+
+            private protected override DateTime GetDefaultValue()
+            {
+                return _unixEpoch;
             }
         }
 
@@ -801,13 +828,35 @@ namespace Microsoft.ML.Transforms
 
             var state = _parent.CreateOnnxSaveData();
             long[] dimensions = new long[] { state.Length };
-            var outputList = new List<string>() { ctx.AddIntermediateVariable(BooleanDataViewType.Instance, "IsRowImputed", true),
+
+            var outputList = new List<string>()
+            {
+                ctx.AddIntermediateVariable(BooleanDataViewType.Instance, "IsRowImputed", true),
                 ctx.AddIntermediateVariable(NumberDataViewType.Int64, _timeSeriesColumn, true),
                 ctx.AddIntermediateVariable(TextDataViewType.Instance,"ImputedKeys", true),
-                ctx.AddIntermediateVariable(TextDataViewType.Instance,"ImputedData", true)};
+                ctx.AddIntermediateVariable(TextDataViewType.Instance,"ImputedData", true)
+            };
 
-            var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "tsi-state"), timeVariableName, ctx.GetVariableName(grainColumns), ctx.GetVariableName(dataColumns) },
-                    outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
+            var inputList = new List<string>()
+            {
+                ctx.AddInitializer(state, dimensions, "tsi-state"),
+                timeVariableName,
+                ctx.GetVariableName(grainColumns),
+                ctx.GetVariableName(dataColumns)
+            };
+
+            // Add any columns that are not being imputed to the input/output here.
+            var nonInputedColumns = _schema.Where(x => !_allImputedColumnNames.Contains(x.Name));
+            foreach (var col in nonInputedColumns)
+            {
+                var source = ctx.GetVariableName(col.Name);
+                var dst = ctx.AddIntermediateVariable(col.Type, col.Name);
+
+                outputList.Add(dst);
+                inputList.Add(source);
+            }
+
+            var node = ctx.CreateNode(opType, inputList, outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
         }
 
         private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, string fdInitializer, string nfdInitializer, out string[] outputColumns)

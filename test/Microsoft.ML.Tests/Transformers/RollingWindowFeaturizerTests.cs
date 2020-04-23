@@ -186,6 +186,57 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [NotCentOS7Fact]
+        public void Horizon2MinTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = "Grain", ColA = 1.0 },
+                new { GrainA = "Grain", ColA = 3.0 },
+                new { GrainA = "Grain", ColA = 5.0 },
+                new { GrainA = "Grain", ColA = 7.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Min, 2, 2);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN }, new[] { double.NaN, 1d }, new[] { 1d, 1d }, new[] { 1d, 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index][0], bufferValues[0]);
+                Assert.Equal(expectedOutput[index++][1], bufferValues[1]);
+            }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> columnName = default;
+
+            var annotations = addedColumn.Annotations;
+            var columnAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
+
+            annotations.GetValue<ReadOnlyMemory<char>>(columnAnnotationName, ref columnName);
+
+            Assert.Equal("ColA_Min_MinWin1_MaxWin2", columnName.ToString());
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [NotCentOS7Fact]
         public void SimpleMaxTest()
         {
             MLContext mlContext = new MLContext(1);

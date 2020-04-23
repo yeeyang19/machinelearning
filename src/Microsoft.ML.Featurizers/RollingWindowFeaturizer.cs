@@ -1111,23 +1111,7 @@ namespace Microsoft.ML.Featurizers
 
                     var node = ctx.CreateNode(opType, new[] { ctx.AddInitializer(state, dimensions, "State"), grainsTensorName, srcVariableName },
                             outputList, ctx.GetNodeName(opType), "com.microsoft.mlfeaturizers");
-
-                    ReshapeOutput(ctx, column.Name);
                 }
-            }
-
-            private void ReshapeOutput(OnnxContext ctx, string name)
-            {
-                string opType = "Reshape";
-                var shapeTensor = new long[] { 0, 1, (int)_parent._options.Horizon };
-                long[] dimensions = new long[] { shapeTensor.Length };
-
-                var srcVariableName = ctx.GetVariableName(name);
-
-                var dstVariableName = ctx.AddIntermediateVariable(new VectorDataViewType(NumberDataViewType.Double, 0, 1, (int)_parent._options.Horizon), name);
-
-                ctx.CreateNode(opType, new[] { srcVariableName, ctx.AddInitializer(shapeTensor, dimensions, "rw-reshapestate") },
-                    new[] { dstVariableName }, ctx.GetNodeName(opType), "");
             }
 
             private void CreateOnnxStringConversion(OnnxContext ctx, string[] inputColumns, out string[] outputColumns)
@@ -1269,7 +1253,6 @@ namespace Microsoft.ML.Featurizers
                         Type outputType = _columns[index].ReturnType();
 
                         return (ValueGetter<TValue>)Utils.MarshalInvoke(_makeGetterMethodInfo, this, inputType, outputType, _sourceCursor, index);
-                        //return (ValueGetter<TValue>)_columns.Where(x => x.Name == column.Name).First().GetGetter();
                     }
 
                     return _sourceCursor.GetGetter<TValue>(column);

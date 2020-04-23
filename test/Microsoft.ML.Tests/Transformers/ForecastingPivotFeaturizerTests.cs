@@ -452,5 +452,36 @@ namespace Microsoft.ML.Tests.Transformers
             Done();
         }
 
+
+        [NotCentOS7Fact]
+        public void RollingWindowPivotIntegrationTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[]
+            {
+                new { grainA = "1970", colA = 1.0 },
+                new { grainA = "1970", colA = 3.0 },
+                new { grainA = "1970", colA = 5.0 },
+                new { grainA = "1970", colA = 7.0 },
+            };
+
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.RollingWindow(new[] { "grainA" }, "colA1", RollingWindowEstimator.RollingWindowCalculation.Min, 2, 2, inputColumn: "colA")
+                .Append(mlContext.Transforms.PivotForecastingData(new[] { "colA1" }));
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var horizonCol = debugView.ColumnView[2].Values;
+            var pivotCol = debugView.ColumnView[3].Values;
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
     }
 }
