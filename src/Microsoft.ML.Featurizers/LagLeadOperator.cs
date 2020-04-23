@@ -208,11 +208,21 @@ namespace Microsoft.ML.Featurizers
 
                 // Create annotations
                 var annotations = new DataViewSchema.Annotations.Builder();
-                ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = "LagLead".AsMemory();
-                ValueGetter<VBuffer<long>> offsetsValueGetter = (ref VBuffer<long> dst) => dst = new VBuffer<long>(_options.Offsets.Length, _options.Offsets);
+                var sb = new StringBuilder();
+                for (int i = 0; i < _options.Offsets.Length; i++)
+                {
+                    sb.Append($"{column.Name}_");
+                    if (_options.Offsets[i] < 1)
+                        sb.Append($"Lag{Math.Abs(_options.Offsets[i])}");
+                    else
+                        sb.Append($"Lead{Math.Abs(_options.Offsets[i])}");
 
-                annotations.Add<ReadOnlyMemory<char>>($"FeaturizerName=LagLead", TextDataViewType.Instance, nameValueGetter);
-                annotations.Add<VBuffer<long>>($"Offsets={String.Join(",", _options.Offsets)}", new VectorDataViewType(NumberDataViewType.Int64, _options.Offsets.Length), offsetsValueGetter);
+                    if (i + 1 != _options.Offsets.Length)
+                        sb.Append(",");
+                }
+
+                ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = sb.ToString().AsMemory();
+                annotations.Add($"ColumnNames={sb.ToString()}", TextDataViewType.Instance, nameValueGetter);
 
                 columns[column.Name] = new SchemaShape.Column(column.Name, VectorKind.Vector,
                     NumberDataViewType.Double, false, SchemaShape.Create(annotations.ToAnnotations().Schema));
@@ -337,11 +347,21 @@ namespace Microsoft.ML.Featurizers
 
                 // Create annotations
                 var annotations = new DataViewSchema.Annotations.Builder();
-                ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = "LagLead".AsMemory();
-                ValueGetter<VBuffer<long>> offsetsValueGetter = (ref VBuffer<long> dst) => dst = new VBuffer<long>(_options.Offsets.Length, _options.Offsets);
+                var sb = new StringBuilder();
+                for (int i = 0; i < _options.Offsets.Length; i++)
+                {
+                    sb.Append($"{column.Name}_");
+                    if (_options.Offsets[i] < 1)
+                        sb.Append($"Lag{Math.Abs(_options.Offsets[i])}");
+                    else
+                        sb.Append($"Lead{Math.Abs(_options.Offsets[i])}");
 
-                annotations.Add<ReadOnlyMemory<char>>($"FeaturizerName=LagLead", TextDataViewType.Instance, nameValueGetter);
-                annotations.Add<VBuffer<long>>($"Offsets={String.Join(",", _options.Offsets)}", new VectorDataViewType(NumberDataViewType.Int64, _options.Offsets.Length), offsetsValueGetter);
+                    if (i + 1 != _options.Offsets.Length)
+                        sb.Append(",");
+                }
+
+                ValueGetter<ReadOnlyMemory<char>> nameValueGetter = (ref ReadOnlyMemory<char> dst) => dst = sb.ToString().AsMemory();
+                annotations.Add($"ColumnNames={sb.ToString()}", TextDataViewType.Instance, nameValueGetter);
 
                 schemaBuilder.AddColumn(column.Name, new VectorDataViewType(NumberDataViewType.Double, _options.Offsets.Length, (int)_options.Horizon), annotations.ToAnnotations());
             }

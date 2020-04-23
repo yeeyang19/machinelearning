@@ -84,18 +84,13 @@ namespace Microsoft.ML.Tests.Transformers
 
             // Verify annotations are correct.
             ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { -1 });
 
             var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
+            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
 
             annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
 
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
+            Assert.Equal("ColA_Lag1", featurizerName.ToString());
 
             Done();
         }
@@ -128,18 +123,13 @@ namespace Microsoft.ML.Tests.Transformers
 
             // Verify annotations are correct.
             ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(4, new long[] { -1, 1, -2, 2 });
 
             var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
+            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("ColumnNames")).First().Name;
 
             annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
 
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
+            Assert.Equal("ColA_New_Lag1,ColA_New_Lead1,ColA_New_Lag2,ColA_New_Lead2", featurizerName.ToString());
 
             Done();
         }
@@ -171,21 +161,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { -1 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -236,21 +211,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 2);
             Assert.True(columnType.Dimensions[1] == 2);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(2, new long[] { -2, -1 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -304,23 +264,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[1] == 500000);
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { 500000 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
-
-            output.Preview();
-
             Done();
         }
 
@@ -352,21 +295,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { 1 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -423,21 +351,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { 2 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
-
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { 3d }, new[] { double.NaN }, new[] { double.NaN } };
@@ -492,21 +405,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 2);
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(2, new long[] { -2, 2 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -564,21 +462,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 4);
             Assert.True(columnType.Dimensions[1] == 2);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsetsBuf = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(offsets.Length, offsets);
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsetsBuf);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsetsBuf.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -641,21 +524,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[1] == 2);
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(2, new long[] { -2, -1 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
-
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN, double.NaN, double.NaN, double.NaN }, new[] { double.NaN, double.NaN, double.NaN, 1d }, new[] { double.NaN, 1d, 1d, 2d } };
@@ -708,21 +576,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 4);
             Assert.True(columnType.Dimensions[1] == 2);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsetsBuf = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(offsets.Length, offsets);
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsetsBuf);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsetsBuf.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
@@ -784,21 +637,6 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
-
-            // Verify annotations are correct.
-            ReadOnlyMemory<char> featurizerName = default;
-            VBuffer<long> offsets = default;
-            VBuffer<long> offsetsExpectedOutput = new VBuffer<long>(1, new long[] { 2 });
-
-            var annotations = addedColumn.Annotations;
-            var feautizerAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("FeaturizerName")).First().Name;
-            var offsetsAnnotationName = annotations.Schema.Where(x => x.Name.StartsWith("Offsets")).First().Name;
-
-            annotations.GetValue<ReadOnlyMemory<char>>(feautizerAnnotationName, ref featurizerName);
-            annotations.GetValue<VBuffer<long>>(offsetsAnnotationName, ref offsets);
-
-            Assert.Equal("LagLead", featurizerName.ToString());
-            Assert.Equal(offsetsExpectedOutput.DenseValues(), offsets.DenseValues());
 
             var cursor = output.GetRowCursor(addedColumn);
 
