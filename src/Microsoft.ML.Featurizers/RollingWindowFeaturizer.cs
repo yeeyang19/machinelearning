@@ -1103,13 +1103,14 @@ namespace Microsoft.ML.Featurizers
 
                 foreach (var column in _parent._columns)
                 {
-                    // srcVariable needs to have the "batch" removed
-                    CreateSqueezeNode(ctx, ctx.GetVariableName(column.Source), NumberDataViewType.Double);
-
-                    var srcVariableName = ctx.GetVariableName(column.Source);
 
                     if (!ctx.ContainsColumn(column.Source))
                         continue;
+
+                    // srcVariable needs to have the "batch" removed
+                    CreateSqueezeNode(ctx, column.Source, NumberDataViewType.Double);
+
+                    var srcVariableName = ctx.GetVariableName(column.Source);
 
                     var dstVariableName = ctx.AddIntermediateVariable(new VectorDataViewType(NumberDataViewType.Double, 1, (int)_parent._options.Horizon), column.Name);
 

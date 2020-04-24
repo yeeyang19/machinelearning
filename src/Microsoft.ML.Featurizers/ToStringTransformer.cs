@@ -1566,9 +1566,10 @@ namespace Microsoft.ML.Featurizers
 
                 foreach (var column in _parent._columns)
                 {
-                    var srcVariableName = ctx.GetVariableName(column.Source);
-                    if (!ctx.ContainsColumn(srcVariableName))
+                    if (!ctx.ContainsColumn(column.Source))
                         continue;
+
+                    var srcVariableName = ctx.GetVariableName(column.Source);
 
                     var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, column.Name);
 
