@@ -219,22 +219,6 @@ namespace Microsoft.ML.Featurizers
 
         public TimeSeriesImputerTransformer Fit(IDataView input)
         {
-            // If we are not suppressing type errors make sure columns to impute only contain supported types.
-            if (!_options.SupressTypeErrors)
-            {
-                var columns = input.Schema.Where(x => !_options.GrainColumns.Contains(x.Name));
-                if (_options.FilterMode == FilterMode.Exclude)
-                    columns = columns.Where(x => !_options.FilterColumns.Contains(x.Name));
-                else if (_options.FilterMode == FilterMode.Include)
-                    columns = columns.Where(x => _options.FilterColumns.Contains(x.Name));
-
-                foreach (var column in columns)
-                {
-                    if (!_currentSupportedTypes.Contains(column.Type.RawType))
-                        throw new InvalidOperationException($"Type {column.Type.RawType.ToString()} for column {column.Name} not a supported type.");
-                }
-            }
-
             return new TimeSeriesImputerTransformer(_host, _options, input);
         }
 
@@ -242,6 +226,10 @@ namespace Microsoft.ML.Featurizers
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
             var columns = inputSchema.ToDictionary(x => x.Name);
+
+            if (columns[_options.TimeSeriesColumn].ItemType != NumberDataViewType.Int64)
+                throw new InvalidOperationException($"Column {_options.TimeSeriesColumn} has an unsupported type. Must be of type Int64.");
+
             columns[IsRowImputedColumnName] = new SchemaShape.Column(IsRowImputedColumnName, SchemaShape.Column.VectorKind.Scalar, BooleanDataViewType.Instance, false);
             return new SchemaShape(columns.Values);
         }
@@ -276,6 +264,9 @@ namespace Microsoft.ML.Featurizers
             _grainColumns = options.GrainColumns;
             _imputeMode = options.ImputeMode;
             _suppressTypeErrors = options.SupressTypeErrors;
+
+            if (input.Schema[options.TimeSeriesColumn].Type != NumberDataViewType.Int64)
+                throw new InvalidOperationException($"Column {options.TimeSeriesColumn} has an unsupported type. Must be of type Int64.");
 
             IEnumerable<string> tempDataColumns;
 
