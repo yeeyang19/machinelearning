@@ -1085,7 +1085,15 @@ namespace Microsoft.ML.Featurizers
                 _host.CheckValue(ctx, nameof(ctx));
                 Contracts.Assert(CanSaveOnnx(ctx));
 
-                string opType = "RollingWindowTransformer";
+                string opType;
+
+                // Since the native code exposes these as 2 different featurizers, we need to let ORT know which one it is.
+                // 0 -> AnalyticalRollingWindow
+                // 1,2 (the else branch) -> SimpleRollingWindow
+                if (_options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Mean)
+                    opType = "AnalyticalRollingWindowTransformer";
+                else
+                    opType = "SimpleRollingWindowTransformer";
 
                 // Convert grain columns to strings
                 CreateOnnxStringConversion(ctx, _parent._options.GrainColumns, out string[] grainStringColumns);
