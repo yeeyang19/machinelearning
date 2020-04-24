@@ -791,8 +791,8 @@ namespace Microsoft.ML.Transforms
             CreateOnnxFromStringConversion(ctx, dataColumnNames, fdInitializer, nfdInitializer, _dataColumns);
 
             // Fix shape for IsRowImputed column
-            //FixShapes(ctx, "IsRowImputed", BooleanDataViewType.Instance);
-            //FixShapes(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
+            FixShapes(ctx, "IsRowImputed", BooleanDataViewType.Instance);
+            FixShapes(ctx, _timeSeriesColumn, NumberDataViewType.Int64);
         }
 
         private void CreateSqueezeNode(OnnxContext ctx, string columnName, DataViewType columnType)
