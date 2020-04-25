@@ -589,6 +589,13 @@ namespace Microsoft.ML.Featurizers
             private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
             {
                 string opType = "Concat";
+
+                if (inputColumns.Length == 1)
+                {
+                    outputColumnName = inputColumns[0];
+                    return;
+                }
+
                 outputColumnName = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnPrefix + "-concatstringsoutput", true);
 
                 var node = ctx.CreateNode(opType, inputColumns, new[] { outputColumnName }, ctx.GetNodeName(opType), "");

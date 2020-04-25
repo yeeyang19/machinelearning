@@ -942,6 +942,13 @@ namespace Microsoft.ML.Transforms
         private void CreateOnnxColumnConcatenation(OnnxContext ctx, string[] inputColumns, string outputColumnPrefix, out string outputColumnName)
         {
             string opType = "Concat";
+
+            if (inputColumns.Length == 1)
+            {
+                outputColumnName = inputColumns[0];
+                return;
+            }
+
             outputColumnName = ctx.AddIntermediateVariable(TextDataViewType.Instance, outputColumnPrefix + "-concatstringsoutput", true);
 
             var node = ctx.CreateNode(opType, inputColumns, new[] { outputColumnName }, ctx.GetNodeName(opType), "");
@@ -952,6 +959,12 @@ namespace Microsoft.ML.Transforms
         private void CreateOnnxColumnSplit(OnnxContext ctx, string inputColumn, string[] outputColumnNames, out string[] outputColumns)
         {
             string opType = "Split";
+
+            if (outputColumnNames.Length == 1)
+            {
+                outputColumns = new string[] { inputColumn };
+                return;
+            }
 
             outputColumns = new string[outputColumnNames.Length];
 
