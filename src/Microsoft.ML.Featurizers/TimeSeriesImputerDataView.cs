@@ -801,6 +801,10 @@ namespace Microsoft.ML.Transforms
 
             var column = ctx.GetVariableName(columnName);
 
+            var shape = ctx.RetrieveShapeOrNull(column);
+            if (shape == null)
+                return;
+
             var dstVariableName = ctx.AddIntermediateVariable(columnType, columnName, true);
 
             var node = ctx.CreateNode(opType, column, dstVariableName, ctx.GetNodeName(opType), "");
@@ -846,7 +850,7 @@ namespace Microsoft.ML.Transforms
             };
 
             // Add any columns that are not being imputed to the input/output here.
-            var nonInputedColumns = _schema.Where(x => !_allImputedColumnNames.Contains(x.Name));
+            var nonInputedColumns = _schema.Where(x => !_allImputedColumnNames.Contains(x.Name) && !x.IsHidden);
             foreach (var col in nonInputedColumns)
             {
                 var source = ctx.GetVariableName(col.Name);

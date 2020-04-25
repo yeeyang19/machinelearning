@@ -574,6 +574,10 @@ namespace Microsoft.ML.Featurizers
 
                 var column = ctx.GetVariableName(columnName);
 
+                var shape = ctx.RetrieveShapeOrNull(column);
+                if (shape == null)
+                    return;
+
                 var dstVariableName = ctx.AddIntermediateVariable(columnType, columnName, true);
 
                 var node = ctx.CreateNode(opType, column, dstVariableName, ctx.GetNodeName(opType), "");

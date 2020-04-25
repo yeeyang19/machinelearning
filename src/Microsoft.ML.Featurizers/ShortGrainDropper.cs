@@ -498,7 +498,7 @@ namespace Microsoft.ML.Featurizers
                 var variadicSources = new List<string>();
                 var variadicDest = new List<string>();
 
-                foreach (var column in Schema)
+                foreach (var column in Schema.Where(x => !x.IsHidden))
                 {
                     variadicSources.Add(ctx.GetVariableName(column.Name));
                     variadicDest.Add(ctx.AddIntermediateVariable(column.Type, column.Name));

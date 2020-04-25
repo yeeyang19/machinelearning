@@ -453,7 +453,7 @@ namespace Microsoft.ML.Featurizers
                 }
 
                 // Add the rest of the columns except the horizon column
-                foreach (var column in Schema.Where(x => !_options.ColumnsToPivot.Contains(x.Name) && x.Name != _options.HorizonColumnName && !_parent._newColumns.Contains(x.Name)))
+                foreach (var column in Schema.Where(x => !_options.ColumnsToPivot.Contains(x.Name) && x.Name != _options.HorizonColumnName && !_parent._newColumns.Contains(x.Name) && !x.IsHidden))
                 {
                     sources.Add(ctx.GetVariableName(column.Name));
                     destinations.Add(ctx.AddIntermediateVariable(column.Type, column.Name));
