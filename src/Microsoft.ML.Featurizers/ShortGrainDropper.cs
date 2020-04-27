@@ -493,8 +493,6 @@ namespace Microsoft.ML.Featurizers
                 // Combine all the grains into one tensor
                 CreateOnnxColumnConcatenation(ctx, grainStringColumns, "grains", out string grainsTensorName);
 
-                var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, grainsTensorName);
-
                 var variadicSources = new List<string>();
                 var variadicDest = new List<string>();
 
@@ -503,6 +501,8 @@ namespace Microsoft.ML.Featurizers
                     variadicSources.Add(ctx.GetVariableName(column.Name));
                     variadicDest.Add(ctx.AddIntermediateVariable(column.Type, column.Name));
                 }
+
+                var dstVariableName = ctx.AddIntermediateVariable(TextDataViewType.Instance, grainsTensorName);
 
                 var state = _parent.CreateTransformerSaveData();
                 long[] dimensions = new long[] { state.Length };
