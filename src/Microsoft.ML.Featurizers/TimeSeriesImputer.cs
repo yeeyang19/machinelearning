@@ -227,7 +227,7 @@ namespace Microsoft.ML.Featurizers
         {
             var columns = inputSchema.ToDictionary(x => x.Name);
 
-            if (columns[_options.TimeSeriesColumn].ItemType != NumberDataViewType.Int64)
+            if (columns[_options.TimeSeriesColumn].ItemType != NumberDataViewType.Int64 && columns[_options.TimeSeriesColumn].ItemType != DateTimeDataViewType.Instance)
                 throw new InvalidOperationException($"Column {_options.TimeSeriesColumn} has an unsupported type. Must be of type Int64.");
 
             columns[IsRowImputedColumnName] = new SchemaShape.Column(IsRowImputedColumnName, SchemaShape.Column.VectorKind.Scalar, BooleanDataViewType.Instance, false);
@@ -265,7 +265,7 @@ namespace Microsoft.ML.Featurizers
             _imputeMode = options.ImputeMode;
             _suppressTypeErrors = options.SupressTypeErrors;
 
-            if (input.Schema[options.TimeSeriesColumn].Type != NumberDataViewType.Int64)
+            if (input.Schema[options.TimeSeriesColumn].Type != NumberDataViewType.Int64 && input.Schema[options.TimeSeriesColumn].Type != DateTimeDataViewType.Instance)
                 throw new InvalidOperationException($"Column {options.TimeSeriesColumn} has an unsupported type. Must be of type Int64.");
 
             IEnumerable<string> tempDataColumns;
