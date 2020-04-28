@@ -173,7 +173,7 @@ namespace Microsoft.ML.Featurizers
         internal sealed class Options : TransformInputBase
         {
             [Argument((ArgumentType.MultipleUnique | ArgumentType.Required), HelpText = "List of grain columns",
-                Name = "GrainColumn", ShortName = "grains", SortOrder = 0)]
+                Name = "GrainColumns", ShortName = "grains", SortOrder = 0)]
             public string[] GrainColumns;
 
             [Argument(ArgumentType.Multiple | ArgumentType.Required, HelpText = "New column definition (optional form: name:src)",
