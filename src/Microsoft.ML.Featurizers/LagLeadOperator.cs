@@ -802,13 +802,13 @@ namespace Microsoft.ML.Featurizers
                         else if (Schema[grainColumns[i]].Type.RawType == typeof(bool))
                             _grainGetters[i] = GetGrainGetter<bool>(grainColumns[i]);
                         if (Schema[grainColumns[i]].Type.RawType == typeof(ReadOnlyMemory<char>))
-                            _grainGetters[i] = _sourceCursor.GetGetter<ReadOnlyMemory<char>>(Schema[grainColumns[i]]);
+                            _grainGetters[i] = _offsetCursor.GetGetter<ReadOnlyMemory<char>>(Schema[grainColumns[i]]);
                     }
                 }
 
                 private ValueGetter<ReadOnlyMemory<char>> GetGrainGetter<T>(string grainColumn)
                 {
-                    var getter = _sourceCursor.GetGetter<T>(_sourceCursor.Schema[grainColumn]);
+                    var getter = _offsetCursor.GetGetter<T>(_offsetCursor.Schema[grainColumn]);
                     T value = default;
                     return (ref ReadOnlyMemory<char> dst) =>
                     {
@@ -991,10 +991,10 @@ namespace Microsoft.ML.Featurizers
                         for (int items = 0; items < outputItems.ToInt32(); items++)
                         {
                             var grainArray = new string[grainsArraySize];
+                            var grainArrayPointer = *allGrainsPointer++;
                             for (int grainItems = 0; grainItems < grainsArraySize; grainItems++)
                             {
-                                var grainArrayPointer = *allGrainsPointer;
-                                grainArray[grainItems] = PointerToString(new IntPtr(*grainArrayPointer));
+                                grainArray[grainItems] = PointerToString(new IntPtr(*grainArrayPointer++));
                             }
 
                             VBuffer<double> res = default;

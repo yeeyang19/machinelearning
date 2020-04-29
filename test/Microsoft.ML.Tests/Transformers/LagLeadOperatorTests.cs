@@ -235,6 +235,168 @@ namespace Microsoft.ML.Tests.Transformers
             TestEstimatorCore(pipeline, data);
             Done();
         }
+        
+        [NotCentOS7Fact]
+        public void LagLeadMultiGrainTest()
+        {
+            MLContext mlContext = new MLContext(1);
+
+            var dataList = new[] {
+                new { GrainA = "Grain1", ColA = 1.0 },
+                new { GrainA = "Grain2", ColA = 2.0 },
+                new { GrainA = "Grain3", ColA = 3.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.CreateLagsAndLeads(new string[] { "GrainA" }, "ColA", 1, new long[] { -3, 1 });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 2);
+            Assert.True(columnType.Dimensions[1] == 1);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            var cursor = output.GetRowCursor(addedColumn);
+            var prev = output.Preview(249);
+
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+                for (int i = 0; i < expectedOutput[0].Length; i++)
+                {
+                    Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                    Assert.Equal(expectedOutput[index][i], bufferValues[i]);
+                }
+                index += 1;
+            }
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+        
+        [NotCentOS7Fact]
+        public void LagLead2MultiGrainTest()
+        {
+            MLContext mlContext = new MLContext(1);
+
+            var dataList = new[] {
+                new { GrainA = "Grain1", GrainB = "Grain1", ColA = 1.0 },
+                new { GrainA = "Grain2", GrainB = "Grain2", ColA = 2.0 },
+                new { GrainA = "Grain3", GrainB = "Grain3", ColA = 3.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.CreateLagsAndLeads(new string[] { "GrainA", "GrainB" }, "ColA", 1, new long[] { -3, 1 });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 2);
+            Assert.True(columnType.Dimensions[1] == 1);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            var cursor = output.GetRowCursor(addedColumn);
+            var prev = output.Preview(249);
+
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+                for (int i = 0; i < expectedOutput[0].Length; i++)
+                {
+                    Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                    Assert.Equal(expectedOutput[index][i], bufferValues[i]);
+                }
+                index += 1;
+            }
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+        
+        [NotCentOS7Fact]
+        public void LagLead2MultiGrain2Test()
+        {
+            MLContext mlContext = new MLContext(1);
+
+            var dataList = new[] {
+                new { GrainA = "Grain1", GrainB = "Grain1", ColA = 1.0 },
+                new { GrainA = "Grain1", GrainB = "Grain2", ColA = 2.0 },
+                new { GrainA = "Grain1", GrainB = "Grain3", ColA = 3.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.CreateLagsAndLeads(new string[] { "GrainA", "GrainB" }, "ColA", 1, new long[] { -3, 1 });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 2);
+            Assert.True(columnType.Dimensions[1] == 1);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            var cursor = output.GetRowCursor(addedColumn);
+            var prev = output.Preview(249);
+
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+                for (int i = 0; i < expectedOutput[0].Length; i++)
+                {
+                    Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                    Assert.Equal(expectedOutput[index][i], bufferValues[i]);
+                }
+                index += 1;
+            }
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
 
         [NotCentOS7Fact]
         public void LargeNumberTest()
