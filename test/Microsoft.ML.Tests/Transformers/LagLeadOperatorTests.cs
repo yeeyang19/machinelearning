@@ -235,7 +235,7 @@ namespace Microsoft.ML.Tests.Transformers
             TestEstimatorCore(pipeline, data);
             Done();
         }
-        
+
         [NotCentOS7Fact]
         public void LagLeadMultiGrainTest()
         {
@@ -268,7 +268,7 @@ namespace Microsoft.ML.Tests.Transformers
             var cursor = output.GetRowCursor(addedColumn);
             var prev = output.Preview(249);
 
-            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
             var index = 0;
             var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
 
@@ -289,21 +289,23 @@ namespace Microsoft.ML.Tests.Transformers
             TestEstimatorCore(pipeline, data);
             Done();
         }
-        
+
         [NotCentOS7Fact]
         public void LagLead2MultiGrainTest()
         {
             MLContext mlContext = new MLContext(1);
 
             var dataList = new[] {
-                new { GrainA = "Grain1", GrainB = "Grain1", ColA = 1.0 },
-                new { GrainA = "Grain2", GrainB = "Grain2", ColA = 2.0 },
-                new { GrainA = "Grain3", GrainB = "Grain3", ColA = 3.0 }
+                new { GrainA = "Grain1", ColA = 1.0 },
+                new { GrainA = "Grain1", ColA = 2.0 },
+                new { GrainA = "Grain3", ColA = 3.0 },
+                new { GrainA = "Grain3", ColA = 4.0 },
+                new { GrainA = "Grain1", ColA = 5.0 },
             };
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline
-            var pipeline = mlContext.Transforms.CreateLagsAndLeads(new string[] { "GrainA", "GrainB" }, "ColA", 1, new long[] { -3, 1 });
+            var pipeline = mlContext.Transforms.CreateLagsAndLeads(new string[] { "GrainA" }, "ColA", 1, new long[] { -3, 1 });
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -320,9 +322,9 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
             var cursor = output.GetRowCursor(addedColumn);
-            var prev = output.Preview(249);
+            var prev = output.Preview();
 
-            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var expectedOutput = new[] { new[] { double.NaN, 2.0 }, new[] { double.NaN, 5.0 }, new[] { double.NaN, 4.0 }, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
             var index = 0;
             var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
 
@@ -343,7 +345,7 @@ namespace Microsoft.ML.Tests.Transformers
             TestEstimatorCore(pipeline, data);
             Done();
         }
-        
+
         [NotCentOS7Fact]
         public void LagLead2MultiGrain2Test()
         {
@@ -376,7 +378,7 @@ namespace Microsoft.ML.Tests.Transformers
             var cursor = output.GetRowCursor(addedColumn);
             var prev = output.Preview(249);
 
-            var expectedOutput = new[] { new[] { double.NaN, double.NaN}, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
+            var expectedOutput = new[] { new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN }, new[] { double.NaN, double.NaN } };
             var index = 0;
             var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
 

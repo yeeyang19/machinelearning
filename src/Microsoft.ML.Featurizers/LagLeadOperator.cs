@@ -727,7 +727,7 @@ namespace Microsoft.ML.Featurizers
                             CreateGrainStringArrays(_grainGetters, ref _grainHandles, ref _grainArrayHandle, ref _grainArray);
 
                             // All columns have the same parameters, so if one is good then all are good and vice versa.
-                            colMoveNext = _columns[0].MoveNext();
+                            colMoveNext = _columns[0].MoveNext(_grainOrder[0]);
 
                             if (colMoveNext)
                                 exitLoop = true;
@@ -761,9 +761,9 @@ namespace Microsoft.ML.Featurizers
                         }
                     }
 
-                    // Remove the first item every time we return from the move next call if the source is still good.
+                    // Remove the correct item every time we return from the move next call if the source is still good.
                     if (_sourceIsGood)
-                        _grainOrder.RemoveAt(0);
+                        _grainOrder.Remove(_columns[0].GrainString);
 
                     _position++;
                     return _sourceIsGood;
@@ -857,6 +857,7 @@ namespace Microsoft.ML.Featurizers
                     private protected readonly string Source;
                     internal readonly string Type;
                     internal readonly string Name;
+                    internal string GrainString;
 
                     internal TypedColumn(string name, string source, TransformerEstimatorSafeHandle transformer, Cursor parent, string type)
                     {
@@ -865,6 +866,7 @@ namespace Microsoft.ML.Featurizers
                         TransformerHandle = transformer;
                         Parent = parent;
                         Type = type;
+                        GrainString = default;
                     }
 
                     internal abstract Delegate GetGetter();
@@ -898,7 +900,7 @@ namespace Microsoft.ML.Featurizers
                     // When we call flush we get all the values back sorted correctly by grain, but if the original
                     // wasn't sorted by grain this order is incorrect. We need to store them by grain so that we can
                     // return them in the right order.
-                    private protected Dictionary<string, List<TOutput>> FlushedValuesCache;
+                    private protected Dictionary<string, List<TOutput>> TransformedValuesCache;
 
                     internal TypedColumn(string name, string source, TransformerEstimatorSafeHandle transformer, Cursor parent, string type) :
                         base(name, source, transformer, parent, type)
@@ -906,7 +908,7 @@ namespace Microsoft.ML.Featurizers
                         SourceGetter = parent._offsetCursor.GetGetter<TInput>(parent._dataView.Schema[source]);
                         Result = default;
                         InputValue = default;
-                        FlushedValuesCache = new Dictionary<string, List<TOutput>>();
+                        TransformedValuesCache = new Dictionary<string, List<TOutput>>();
                     }
 
                     internal override Delegate GetGetter()
@@ -919,20 +921,16 @@ namespace Microsoft.ML.Featurizers
                         if (Parent._offsetIsGood)
                         {
                             SourceGetter(ref InputValue);
-                            if (!Transform())
+                            if (!Transform() || GrainString != grainString)
                                 return false;
-                            return true;
                         }
-                        else
-                        {
-                            // In this case flush has already been called. We just need to match the correct
-                            // grain from the internal FlushedValuesCache.
-                            Debug.Assert(grainString != "", "Grain string should never be empty at this point.");
-                            Result = FlushedValuesCache[grainString][0];
 
-                            // Now that Result is set to the correct value, remove index 0
-                            FlushedValuesCache[grainString].RemoveAt(0);
-                        }
+                        Debug.Assert(grainString != "", "Grain string should never be empty at this point.");
+                        Result = TransformedValuesCache[grainString][0];
+
+                        // Now that Result is set to the correct value, remove index 0
+                        TransformedValuesCache[grainString].RemoveAt(0);
+                        GrainString = grainString;
 
                         // Once Parent._offsetIsGood is false we no longer care about the return value from this.
                         // Because of that, defaulting to return true;
@@ -1014,10 +1012,10 @@ namespace Microsoft.ML.Featurizers
 
                             var grainString = string.Join("", grainArray);
 
-                            if (!FlushedValuesCache.ContainsKey(grainString))
-                                FlushedValuesCache[grainString] = new List<VBuffer<double>>();
+                            if (!TransformedValuesCache.ContainsKey(grainString))
+                                TransformedValuesCache[grainString] = new List<VBuffer<double>>();
 
-                            FlushedValuesCache[grainString].Add(res);
+                            TransformedValuesCache[grainString].Add(res);
                         }
                     }
 
@@ -1046,15 +1044,28 @@ namespace Microsoft.ML.Featurizers
 
                         using var handler = new LagLeadTransformedDataSafeHandle(grainsPointerPointer, grainsPointerSize, outputCols, outputRows, output, outputItems, DestroyTransformedDataNative);
 
-                        // For the call to transform, we dont need to use the grainsPointerPointer or grainsPointerSizes, and there is only ever 1 row.
-                        // These will be used when we flush all the output data, but the signature is the same for transform.
-                        // Since we know there is only 1 output row, we can short circuit some of the loops.
+                        var grainsArraySize = GetGrainsArraySize(grainsPointerSize, IntPtr.Size);
+                        var allGrainsPointer = (byte***)grainsPointerPointer.ToPointer();
+
+                        var grainArray = new string[grainsArraySize];
+                        var grainArrayPointer = *allGrainsPointer;
+                        for (int grainItems = 0; grainItems < grainsArraySize; grainItems++)
+                        {
+                            grainArray[grainItems] = PointerToString(new IntPtr(*grainArrayPointer++));
+                        }
+
+                        GrainString = string.Join("", grainArray);
 
                         // x32
                         if (IntPtr.Size == 4)
                             Result = ParseTransformResultx32((int*)outputCols.ToPointer(), (int*)outputRows.ToPointer(), output, outputItems);
                         else
                             Result = ParseTransformResultx64((long*)outputCols.ToPointer(), (long*)outputRows.ToPointer(), output, outputItems);
+
+                        if (!TransformedValuesCache.ContainsKey(GrainString))
+                            TransformedValuesCache[GrainString] = new List<VBuffer<double>>();
+
+                        TransformedValuesCache[GrainString].Add(Result);
 
                         return true;
                     }
